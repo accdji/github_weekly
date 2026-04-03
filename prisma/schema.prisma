@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Repository {
+  id           Int             @id @default(autoincrement())
+  githubId     Int             @unique
+  owner        String
+  name         String
+  fullName     String          @unique
+  description  String?
+  htmlUrl      String
+  language     String?
+  stars        Int             @default(0)
+  forks        Int             @default(0)
+  watchers     Int             @default(0)
+  openIssues   Int             @default(0)
+  topicsJson   String          @default("[]")
+  createdAtGh  DateTime
+  pushedAtGh   DateTime?
+  updatedAtGh  DateTime?
+  collectedAt  DateTime        @default(now())
+  starHistoryFrom DateTime?
+  starHistorySyncedAt DateTime?
+  snapshots    Snapshot[]
+  rankings     WeeklyRanking[]
+  starDailyStats StarDailyStat[]
+}
+
+model Snapshot {
+  id          Int        @id @default(autoincrement())
+  repositoryId Int
+  stars       Int
+  forks       Int
+  watchers    Int
+  openIssues  Int
+  fetchedAt   DateTime   @default(now())
+  repository  Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId, fetchedAt])
+}
+
+model WeeklyRanking {
+  id             Int        @id @default(autoincrement())
+  weekKey        String
+  repositoryId   Int
+  rank           Int
+  score          Float
+  starDelta7d    Int
+  forkDelta7d    Int
+  snapshotAt     DateTime
+  repository     Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([weekKey, repositoryId])
+  @@index([weekKey, rank])
+}
+
+model StarDailyStat {
+  id           Int        @id @default(autoincrement())
+  repositoryId Int
+  date         DateTime
+  starsAdded   Int
+  collectedAt  DateTime   @default(now())
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, date])
+  @@index([date])
+}
