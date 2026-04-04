@@ -1,67 +1,86 @@
 # Product Design
 
-[中文版](./product.zh-CN.md)
+[中文文档](./product.zh-CN.md)
 
 ## Positioning
 
-GitHub Weekly is not a mirror of GitHub Trending. It is a weekly ranking product built from our own snapshot history.
+Open Source Trend Intelligence Desk is a bilingual open-source intelligence product built on owned snapshots, weekly rankings, curated collections, archives, subscriptions, and backend job visibility.
 
-## MVP
-
-The first version focuses on:
-
-- collecting candidate repositories from GitHub
-- storing repository and snapshot history
-- generating a weekly hot ranking
-- displaying the ranking on a website
+It is not a mirror of GitHub Trending and it is not a browser-side crawler.
 
 ## Target Users
 
-- developers who want to discover rising open source projects
-- content creators who need weekly GitHub topics
-- teams tracking trends in AI and developer tooling
+- Developers who want to discover rising open-source projects early
+- Research and content teams tracking ecosystem momentum
+- Product, DevRel, and investment teams watching AI, infra, and developer-tool categories
 
-## Core Pages
+## Core Experience
 
-### Home
+1. Dashboard
+   A read-only control room for filtering, comparing, exporting, and browsing rising repositories.
+2. Collections
+   A gallery-style collection index and detail experience inspired by collection-driven discovery products, now including subscribe and follow entry points.
+3. Archive
+   Historical weekly snapshots and repository history pages.
+4. Methodology
+   A transparent explanation of data coverage, scoring, and metric definitions.
+5. Jobs
+   A backend job center for pipeline visibility and operational trust.
+6. Subscription Center
+   A shared surface for keyword alerts and collection follows.
+7. Product Manual
+   A practical handbook that explains CLI access, exports, subscriptions, and troubleshooting.
 
-- current weekly top list
-- score, star delta, total stars
-- language and update time
+## Collections Direction
 
-### Weekly Archive
+The collections surface intentionally follows the OSS Insight Collections pattern at the information-architecture level:
 
-- historical weekly rankings
+- collection index page
+- collection cards with repo previews
+- featured gallery sections and tag browse
+- collection detail hero
+- trend section
+- repository table
+- collection subscription CTA
+- related collections
+- metric methodology
 
-### Repository Detail
+The first version does not attempt a pixel-perfect clone. It keeps the project visual language while matching the product structure and key interactions.
 
-- repository metadata
-- latest score
-- recent snapshot history
+## What Is Explicitly Out of Scope For Now
 
-## Differentiators
+- browser-triggered collection runs
+- public new-collection submission flow
+- multi-year continuous collection history
+- full community editing or moderation system
 
-- historical snapshot database instead of current-only display
-- weekly growth ranking rather than total-star sorting
-- room for Chinese summaries and category tags
-- future support for language-specific and topic-specific boards
+## Feature Priorities
 
-## Data Strategy
+### P0
 
-### Primary Source
+- Reliable backend ingestion and weekly ranking
+- Database-backed collections
+- Collection follow / subscription flow
+- Collection index and collection detail pages
+- Job center aligned with backend-only execution
+- Updated docs and product manual
 
-GitHub REST API is the primary source for the MVP because it is structured and stable.
+### P1
 
-### Supplemental Source
+- Year-to-date PR, issue, and contributor collection metrics
+- Richer collection curation workflows
+- More browse modes such as featured, A-Z, and archive views
 
-GitHub Trending can be added later as a secondary signal, not as the only source.
+### P2
 
-## Ranking Strategy
+- Email or team notifications
+- Multi-editor collection workflows
+- Dedicated worker execution model
 
-The MVP score is based on:
+## Success Signals
 
-- 7-day star delta
-- 7-day fork delta
-- recency bonus from last push time
-
-This can evolve later with topic boosts, trending boosts, and freshness decay.
+- Returning visits to collections and dashboard surfaces
+- Number of collections with healthy repository coverage
+- Successful backend runs per week
+- Freshness of collection snapshots
+- Product manual usage and report export usage

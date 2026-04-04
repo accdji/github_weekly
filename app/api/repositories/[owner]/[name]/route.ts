@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/db";
 import { getGitHubRepositoryDetails } from "@/lib/github";
+import { CACHE_WINDOWS, jsonWithCache } from "@/lib/http-cache";
+import { memoizeWithTTL } from "@/lib/runtime-cache";
 import type { RepositoryDetailPayload } from "@/lib/dashboard-types";
+
+export const revalidate = 600;
 
 type Context = {
   params: Promise<{
@@ -41,10 +45,7 @@ function computeDetailHealth({
   return Number(Math.max(0, Math.min(100, recencyScore + issueScore + prScore + scaleScore - pressurePenalty)).toFixed(1));
 }
 
-export async function GET(_: Request, context: Context) {
-  const params = await context.params;
-  const fullName = `${params.owner}/${params.name}`;
-
+async function buildRepositoryDetailPayload(fullName: string, owner: string, name: string): Promise<RepositoryDetailPayload | null> {
   const repository = await prisma.repository.findUnique({
     where: { fullName },
     include: {
@@ -60,7 +61,7 @@ export async function GET(_: Request, context: Context) {
   });
 
   if (!repository) {
-    return new Response("Not found", { status: 404 });
+    return null;
   }
 
   let liveDetails:
@@ -74,7 +75,7 @@ export async function GET(_: Request, context: Context) {
       };
 
   try {
-    liveDetails = await getGitHubRepositoryDetails(params.owner, params.name);
+    liveDetails = await getGitHubRepositoryDetails(owner, name);
   } catch {
     liveDetails = {
       repository: null,
@@ -162,5 +163,23 @@ export async function GET(_: Request, context: Context) {
     });
   }
 
-  return Response.json(payload);
+  return payload;
+}
+
+const getCachedRepositoryDetailPayload = memoizeWithTTL(
+  "repository-detail-payload",
+  CACHE_WINDOWS.repository,
+  async (fullName: string, owner: string, name: string) => buildRepositoryDetailPayload(fullName, owner, name),
+);
+
+export async function GET(_: Request, context: Context) {
+  const params = await context.params;
+  const fullName = `${params.owner}/${params.name}`;
+  const payload = await getCachedRepositoryDetailPayload(fullName, params.owner, params.name);
+
+  if (!payload) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  return jsonWithCache(payload, CACHE_WINDOWS.repository);
 }

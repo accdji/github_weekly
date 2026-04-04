@@ -1,15 +1,26 @@
 {
-  "name": "github-weekly",
+  "name": "open-source-trend-intelligence-desk",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:prod": "npm run prisma:generate:prod && next build",
     "start": "next start",
     "collect:daily": "tsx scripts/collect-daily.ts",
     "sync:stars": "tsx scripts/sync-star-history.ts",
     "build:weekly": "tsx scripts/build-weekly.ts",
-    "prisma:generate": "prisma generate"
+    "collections:sync": "tsx scripts/sync-collections.ts",
+    "pipeline:run": "tsx scripts/run-pipeline.ts",
+    "ai:context": "tsx scripts/ai-context.ts",
+    "ai:report": "tsx scripts/ai-report.ts",
+    "ai:repo": "tsx scripts/ai-repo.ts",
+    "env:check:prod": "tsx scripts/check-production-env.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:generate:prod": "prisma generate --schema prisma/schema.postgres.prisma",
+    "db:push": "prisma db push",
+    "db:push:prod": "prisma db push --schema prisma/schema.postgres.prisma",
+    "gitnexus:analyze": "powershell -ExecutionPolicy Bypass -File .\\scripts\\update-gitnexus.ps1"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",

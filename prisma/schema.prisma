@@ -8,28 +8,33 @@ datasource db {
 }
 
 model Repository {
-  id           Int             @id @default(autoincrement())
-  githubId     Int             @unique
-  owner        String
-  name         String
-  fullName     String          @unique
-  description  String?
-  htmlUrl      String
-  language     String?
-  stars        Int             @default(0)
-  forks        Int             @default(0)
-  watchers     Int             @default(0)
-  openIssues   Int             @default(0)
-  topicsJson   String          @default("[]")
-  createdAtGh  DateTime
-  pushedAtGh   DateTime?
-  updatedAtGh  DateTime?
-  collectedAt  DateTime        @default(now())
+  id                Int                    @id @default(autoincrement())
+  githubId          Int                    @unique
+  owner             String
+  name              String
+  fullName          String                 @unique
+  description       String?
+  htmlUrl           String
+  language          String?
+  stars             Int                    @default(0)
+  forks             Int                    @default(0)
+  watchers          Int                    @default(0)
+  openIssues        Int                    @default(0)
+  topicsJson        String                 @default("[]")
+  createdAtGh       DateTime
+  pushedAtGh        DateTime?
+  updatedAtGh       DateTime?
+  collectedAt       DateTime               @default(now())
   starHistoryFrom DateTime?
   starHistorySyncedAt DateTime?
-  snapshots    Snapshot[]
-  rankings     WeeklyRanking[]
-  starDailyStats StarDailyStat[]
+  snapshots         Snapshot[]
+  rankings          WeeklyRanking[]
+  starDailyStats    StarDailyStat[]
+  subscriptions     Subscription[]
+  collectionItems   CollectionItem[]
+  pullRequestStats  PullRequestDailyStat[]
+  issueStats        IssueDailyStat[]
+  contributorStats  ContributorWeeklyStat[]
 }
 
 model Snapshot {
@@ -70,4 +75,252 @@ model StarDailyStat {
 
   @@unique([repositoryId, date])
   @@index([date])
+}
+
+model JobRun {
+  id          Int      @id @default(autoincrement())
+  jobType     String
+  status      String
+  triggeredBy String   @default("system")
+  message     String?
+  statsJson   String   @default("{}")
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  @@index([jobType, startedAt])
+  @@index([status, startedAt])
+}
+
+model IngestionJob {
+  id           Int              @id @default(autoincrement())
+  jobType      String
+  scope        String?
+  status       String
+  triggeredBy  String           @default("system")
+  cursor       String?
+  retries      Int              @default(0)
+  statsJson    String           @default("{}")
+  errorMessage String?
+  startedAt    DateTime         @default(now())
+  finishedAt   DateTime?
+  tasks        IngestionTask[]
+  batches      IngestionBatch[]
+
+  @@index([jobType, startedAt])
+  @@index([status, startedAt])
+}
+
+model IngestionTask {
+  id           Int              @id @default(autoincrement())
+  jobId        Int
+  taskType     String
+  status       String
+  cursor       String?
+  retries      Int              @default(0)
+  itemCount    Int              @default(0)
+  statsJson    String           @default("{}")
+  errorMessage String?
+  startedAt    DateTime         @default(now())
+  finishedAt   DateTime?
+  job          IngestionJob     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  batches      IngestionBatch[]
+
+  @@index([jobId, startedAt])
+  @@index([taskType, status])
+}
+
+model IngestionBatch {
+  id                  Int                   @id @default(autoincrement())
+  jobId               Int
+  taskId              Int?
+  source              String                @default("github")
+  resourceType        String
+  resourceWindowStart DateTime?
+  resourceWindowEnd   DateTime?
+  status              String                @default("running")
+  cursor              String?
+  itemCount           Int                   @default(0)
+  statsJson           String                @default("{}")
+  errorMessage        String?
+  fetchedAt           DateTime              @default(now())
+  completedAt         DateTime?
+  job                 IngestionJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  task                IngestionTask?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  rawRepositories     RawGitHubRepository[]
+
+  @@index([jobId, fetchedAt])
+  @@index([resourceType, fetchedAt])
+  @@index([status, fetchedAt])
+}
+
+model RawGitHubRepository {
+  id          Int            @id @default(autoincrement())
+  batchId     Int
+  resourceKey String
+  githubId    Int
+  owner       String
+  name        String
+  payloadJson String
+  fetchedAt   DateTime       @default(now())
+  batch       IngestionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, resourceKey])
+  @@index([resourceKey, fetchedAt])
+  @@index([githubId, fetchedAt])
+}
+
+model Subscription {
+  id               Int         @id @default(autoincrement())
+  email            String?
+  locale           String      @default("zh-CN")
+  channel          String      @default("in_app")
+  subscriptionType String      @default("keyword")
+  digestFrequency  String      @default("weekly")
+  enabled          Boolean     @default(true)
+  keywordsJson     String      @default("[]")
+  repositoryId     Int?
+  collectionId     Int?
+  lastNotifiedAt   DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  repository       Repository? @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, updatedAt])
+  @@index([repositoryId])
+  @@index([collectionId])
+  @@index([subscriptionType, enabled, updatedAt])
+}
+
+model Collection {
+  id              Int                      @id @default(autoincrement())
+  slug            String                   @unique
+  name            String
+  description     String
+  coverImage      String?
+  isPublished     Boolean                  @default(true)
+  featured        Boolean                  @default(false)
+  sortOrder       Int                      @default(0)
+  curationSource  String                   @default("seed")
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  items           CollectionItem[]
+  tags            CollectionTagMap[]
+  trendSnapshots  CollectionTrendSnapshot[]
+  summarySnapshots CollectionSummarySnapshot[]
+  subscriptions   Subscription[]
+
+  @@index([isPublished, featured, sortOrder])
+}
+
+model CollectionItem {
+  id           Int         @id @default(autoincrement())
+  collectionId Int
+  repositoryId Int
+  position     Int         @default(0)
+  note         String?
+  addedAt      DateTime    @default(now())
+  collection   Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, repositoryId])
+  @@index([collectionId, position])
+  @@index([repositoryId])
+}
+
+model CollectionTag {
+  id          Int                @id @default(autoincrement())
+  slug        String             @unique
+  name        String             @unique
+  collections CollectionTagMap[]
+}
+
+model CollectionTagMap {
+  id           Int           @id @default(autoincrement())
+  collectionId Int
+  tagId        Int
+  collection   Collection    @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  tag          CollectionTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, tagId])
+  @@index([tagId])
+}
+
+model CollectionTrendSnapshot {
+  id                 Int         @id @default(autoincrement())
+  collectionId       Int
+  date               DateTime
+  year               Int
+  starsAdded         Int         @default(0)
+  prsOpened          Int         @default(0)
+  prsMerged          Int         @default(0)
+  issuesOpened       Int         @default(0)
+  issuesClosed       Int         @default(0)
+  activeContributors Int         @default(0)
+  trackedRepositories Int        @default(0)
+  createdAt          DateTime    @default(now())
+  collection         Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, date])
+  @@index([year, date])
+}
+
+model CollectionSummarySnapshot {
+  id                  Int         @id @default(autoincrement())
+  collectionId        Int
+  date                DateTime
+  year                Int
+  repositoryCount     Int         @default(0)
+  totalStars          Int         @default(0)
+  starsAdded          Int         @default(0)
+  prsOpened           Int         @default(0)
+  issuesOpened        Int         @default(0)
+  activeContributors  Int         @default(0)
+  subscriptionCount   Int         @default(0)
+  createdAt           DateTime    @default(now())
+  collection          Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, date])
+  @@index([year, date])
+}
+
+model PullRequestDailyStat {
+  id           Int        @id @default(autoincrement())
+  repositoryId Int
+  date         DateTime
+  opened       Int        @default(0)
+  merged       Int        @default(0)
+  closed       Int        @default(0)
+  collectedAt  DateTime   @default(now())
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, date])
+  @@index([date])
+}
+
+model IssueDailyStat {
+  id           Int        @id @default(autoincrement())
+  repositoryId Int
+  date         DateTime
+  opened       Int        @default(0)
+  closed       Int        @default(0)
+  collectedAt  DateTime   @default(now())
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, date])
+  @@index([date])
+}
+
+model ContributorWeeklyStat {
+  id                 Int        @id @default(autoincrement())
+  repositoryId       Int
+  weekStart          DateTime
+  activeContributors Int        @default(0)
+  newContributors    Int        @default(0)
+  topContributorsJson String    @default("[]")
+  collectedAt        DateTime   @default(now())
+  repository         Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, weekStart])
+  @@index([weekStart])
 }

@@ -65,7 +65,7 @@ type StargazersGraphqlResult = {
 function buildHeaders(accept?: string) {
   const headers: Record<string, string> = {
     Accept: accept ?? "application/vnd.github+json",
-    "User-Agent": "github-weekly-app",
+    "User-Agent": "open-source-trend-intelligence-desk",
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
@@ -148,6 +148,13 @@ function getLanguageQueries(): string[] {
     .filter(Boolean);
 }
 
+function getDefaultSearchQuery() {
+  const now = new Date();
+  const windowStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 7));
+  const isoDate = windowStart.toISOString().slice(0, 10);
+  return `stars:>100 pushed:>=${isoDate} archived:false`;
+}
+
 function summarizeReadme(markdown: string) {
   const cleaned = markdown
     .replace(/```[\s\S]*?```/g, " ")
@@ -163,7 +170,7 @@ function summarizeReadme(markdown: string) {
 }
 
 export async function searchCandidateRepositories(): Promise<GitHubRepository[]> {
-  const baseQuery = process.env.GITHUB_SEARCH_QUERY ?? "stars:>100 pushed:>=2026-03-27 archived:false";
+  const baseQuery = process.env.GITHUB_SEARCH_QUERY ?? getDefaultSearchQuery();
   const perPage = Number(process.env.COLLECT_PER_QUERY ?? "20");
   const deduped = new Map<number, GitHubRepository>();
   const queries = [baseQuery, ...getLanguageQueries().map((language) => `${baseQuery} language:${language}`)];

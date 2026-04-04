@@ -1,5 +1,8 @@
 import { getDashboardData } from "@/lib/dashboard";
 import type { DashboardRange } from "@/lib/dashboard-types";
+import { CACHE_WINDOWS, jsonWithCache } from "@/lib/http-cache";
+
+export const revalidate = 120;
 
 function parseRange(value: string | null): DashboardRange {
   if (value === "today" || value === "week" || value === "month" || value === "custom" || value === "snapshot") {
@@ -22,5 +25,5 @@ export async function GET(request: Request) {
     to,
   });
 
-  return Response.json(payload);
+  return jsonWithCache(payload, CACHE_WINDOWS.dashboard);
 }

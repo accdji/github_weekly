@@ -27,14 +27,16 @@ export function SummaryCard({
 export function LanguageDistributionChart({
   items,
   title,
+  unknownLabel = "Unknown",
 }: {
   items: DashboardItem[];
   title: string;
+  unknownLabel?: string;
 }) {
   const totals = new Map<string, number>();
 
   for (const item of items) {
-    const key = item.language ?? "Unknown";
+    const key = item.language ?? unknownLabel;
     totals.set(key, (totals.get(key) ?? 0) + item.rangeStars);
   }
 

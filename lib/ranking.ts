@@ -46,12 +46,20 @@ export async function buildWeeklyRanking(targetDate = new Date()) {
       },
       orderBy: { fetchedAt: "desc" },
     });
+    const earliestComparableSnapshot = await prisma.snapshot.findFirst({
+      where: {
+        repositoryId: snapshot.repositoryId,
+        id: { not: snapshot.id },
+      },
+      orderBy: { fetchedAt: "asc" },
+    });
+    const baselineSnapshot = previousSnapshot ?? earliestComparableSnapshot ?? snapshot;
 
     const historyReady = hasCoveredStarHistory(snapshot.repository.starHistoryFrom, compareDate);
     const starDelta7d = historyReady
       ? sumStarDailyRange(starGrouped.get(snapshot.repositoryId) ?? [], compareDate, targetDate)
-      : snapshot.stars - (previousSnapshot?.stars ?? snapshot.stars);
-    const forkDelta7d = snapshot.forks - (previousSnapshot?.forks ?? snapshot.forks);
+      : snapshot.stars - baselineSnapshot.stars;
+    const forkDelta7d = snapshot.forks - baselineSnapshot.forks;
     const pushedAt = snapshot.repository.pushedAtGh?.getTime() ?? snapshot.fetchedAt.getTime();
     const recencyDays = Math.max(0, (targetDate.getTime() - pushedAt) / 86400000);
     const recencyBonus = Math.max(0, 10 - recencyDays);

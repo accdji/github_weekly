@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/db";
+import { CACHE_WINDOWS, jsonWithCache } from "@/lib/http-cache";
+
+export const revalidate = 300;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -11,7 +14,7 @@ export async function GET(request: Request) {
       });
 
   if (!latestWeek) {
-    return Response.json({ weekKey: null, items: [] });
+    return jsonWithCache({ weekKey: null, items: [] }, CACHE_WINDOWS.archive);
   }
 
   const items = await prisma.weeklyRanking.findMany({
@@ -20,8 +23,8 @@ export async function GET(request: Request) {
     include: { repository: true },
   });
 
-  return Response.json({
+  return jsonWithCache({
     weekKey: latestWeek.weekKey,
     items,
-  });
+  }, CACHE_WINDOWS.archive);
 }

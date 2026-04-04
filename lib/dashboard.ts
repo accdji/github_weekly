@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { DashboardItem, DashboardPayload, DashboardRange, HeatmapCell } from "@/lib/dashboard-types";
+import { CACHE_WINDOWS } from "@/lib/http-cache";
+import { memoizeWithTTL } from "@/lib/runtime-cache";
 import { hasCoveredStarHistory, sumStarDailyRange } from "@/lib/star-history";
 
 type SnapshotWithRepository = Prisma.SnapshotGetPayload<{
@@ -70,7 +72,7 @@ function getRangeDates(range: DashboardRange, now: Date, weekKey?: string | null
 
   if (range === "today") {
     return {
-      from: addDays(toStartOfDay(now), -1),
+      from: toStartOfDay(now),
       to: now,
       label: "Today",
     };
@@ -113,6 +115,10 @@ function getCoverageDays(current: Date, baseline: Date | null) {
   return Math.max(0, Math.floor((current.getTime() - baseline.getTime()) / 86400000));
 }
 
+function hasAnyComparableHistory(historyFrom: Date | null, delta: { coverageDays: number; hasBaseline: boolean }) {
+  return Boolean(historyFrom) || delta.hasBaseline || delta.coverageDays > 0;
+}
+
 function resolveDelta(snapshots: SnapshotWithRepository[], current: SnapshotWithRepository, cutoff: Date, requiredDays: number) {
   const exactBaseline = findLastAtOrBefore(snapshots, cutoff);
 
@@ -120,6 +126,7 @@ function resolveDelta(snapshots: SnapshotWithRepository[], current: SnapshotWith
     return {
       value: current.stars - exactBaseline.stars,
       ready: true,
+      hasBaseline: true,
       coverageDays: getCoverageDays(current.fetchedAt, exactBaseline.fetchedAt),
     };
   }
@@ -130,6 +137,7 @@ function resolveDelta(snapshots: SnapshotWithRepository[], current: SnapshotWith
     return {
       value: current.stars - earliest.stars,
       ready: getCoverageDays(current.fetchedAt, earliest.fetchedAt) >= requiredDays,
+      hasBaseline: true,
       coverageDays: getCoverageDays(current.fetchedAt, earliest.fetchedAt),
     };
   }
@@ -137,6 +145,7 @@ function resolveDelta(snapshots: SnapshotWithRepository[], current: SnapshotWith
   return {
     value: 0,
     ready: false,
+    hasBaseline: false,
     coverageDays: 0,
   };
 }
@@ -178,7 +187,32 @@ function computeHealthScore(stars: number, openIssues: number, lastPushedAt: Dat
   return Math.max(0, Math.min(100, freshnessScore + scaleScore - issuePenalty));
 }
 
-export async function getDashboardData(options?: {
+function buildHotReason(input: {
+  language: string | null;
+  topics: string[];
+  weeklyStars: number;
+  forks: number;
+  pushedAt: Date | null;
+}) {
+  const topicText = input.topics.join(" ").toLowerCase();
+  const freshnessDays = input.pushedAt ? Math.max(0, (Date.now() - input.pushedAt.getTime()) / 86400000) : 99;
+
+  if (topicText.includes("ai") || topicText.includes("llm") || topicText.includes("agent")) {
+    return "AI-related momentum plus strong recent star growth.";
+  }
+
+  if (freshnessDays <= 3 && input.weeklyStars > 0) {
+    return "Recently pushed code and visible weekly star acceleration.";
+  }
+
+  if ((input.language === "TypeScript" || input.language === "JavaScript") && input.forks > 500) {
+    return "Large developer adoption signal with strong ecosystem pull.";
+  }
+
+  return "Steady open-source growth supported by stars, forks, and recent activity.";
+}
+
+async function fetchDashboardData(options?: {
   range?: DashboardRange;
   weekKey?: string | null;
   from?: string | null;
@@ -187,6 +221,7 @@ export async function getDashboardData(options?: {
   const now = new Date();
   const range = options?.range ?? "week";
   const dates = getRangeDates(range, now, options?.weekKey, options?.from, options?.to);
+  const todayStart = toStartOfDay(dates.to);
   const starStatsFrom = minDate(dates.from, addDays(dates.to, -30), addDays(dates.to, -7), addDays(dates.to, -1));
   const snapshots = await prisma.snapshot.findMany({
     orderBy: [{ repositoryId: "asc" }, { fetchedAt: "asc" }],
@@ -234,7 +269,7 @@ export async function getDashboardData(options?: {
     }
 
     const rangeDelta = resolveDelta(repositorySnapshots, current, dates.from, Math.max(1, getCoverageDays(dates.to, dates.from)));
-    const todayDelta = resolveDelta(repositorySnapshots, current, addDays(dates.to, -1), 1);
+    const todayDelta = resolveDelta(repositorySnapshots, current, todayStart, 1);
     const monthDelta = resolveDelta(repositorySnapshots, current, addDays(dates.to, -30), 30);
     const weekDelta = resolveDelta(repositorySnapshots, current, addDays(dates.to, -7), 7);
     const topics = parseTopics(current.repository.topicsJson);
@@ -242,13 +277,16 @@ export async function getDashboardData(options?: {
     const repositoryStarStats = starGrouped.get(current.repositoryId) ?? [];
     const hasRangeHistory = hasCoveredStarHistory(current.repository.starHistoryFrom, dates.from);
     const hasWeekHistory = hasCoveredStarHistory(current.repository.starHistoryFrom, addDays(dates.to, -7));
-    const hasTodayHistory = hasCoveredStarHistory(current.repository.starHistoryFrom, addDays(dates.to, -1));
+    const hasTodayHistory = hasCoveredStarHistory(current.repository.starHistoryFrom, todayStart);
     const rangeStars = hasRangeHistory ? sumStarDailyRange(repositoryStarStats, dates.from, dates.to) : rangeDelta.value;
     const weeklyStars = hasWeekHistory ? sumStarDailyRange(repositoryStarStats, addDays(dates.to, -7), dates.to) : weekDelta.value;
-    const todayStars = hasTodayHistory ? sumStarDailyRange(repositoryStarStats, addDays(dates.to, -1), dates.to) : todayDelta.value;
+    const todayStars = hasTodayHistory ? sumStarDailyRange(repositoryStarStats, todayStart, dates.to) : todayDelta.value;
     const monthlyStars = hasCoveredStarHistory(current.repository.starHistoryFrom, addDays(dates.to, -30))
       ? sumStarDailyRange(repositoryStarStats, addDays(dates.to, -30), dates.to)
       : monthDelta.value;
+    const hasRangeComparableHistory = hasAnyComparableHistory(current.repository.starHistoryFrom, rangeDelta);
+    const hasWeekComparableHistory = hasAnyComparableHistory(current.repository.starHistoryFrom, weekDelta);
+    const hasTodayComparableHistory = hasAnyComparableHistory(current.repository.starHistoryFrom, todayDelta);
 
     items.push({
       repositoryId: current.repositoryId,
@@ -268,16 +306,27 @@ export async function getDashboardData(options?: {
       rangeStars,
       rangeLabel: dates.label,
       score: Number((rangeStars + current.forks * 0.03).toFixed(2)),
+      hotReason: buildHotReason({
+        language: current.repository.language,
+        topics,
+        weeklyStars,
+        forks: current.forks,
+        pushedAt: current.repository.pushedAtGh,
+      }),
       healthScore: Number(healthScore.toFixed(1)),
       issuePressure: current.openIssues,
       lastPushedAt: current.repository.pushedAtGh?.toISOString() ?? null,
       lastCollectedAt: current.fetchedAt.toISOString(),
-      weeklyHistoryReady: hasWeekHistory || weekDelta.ready,
-      todayHistoryReady: hasTodayHistory || todayDelta.ready,
-      rangeHistoryReady: hasRangeHistory || rangeDelta.ready,
+      weeklyHistoryReady: hasWeekHistory || weekDelta.ready || hasWeekComparableHistory,
+      weeklyHistoryComplete: hasWeekHistory || weekDelta.ready,
+      todayHistoryReady: hasTodayHistory || todayDelta.ready || hasTodayComparableHistory,
+      rangeHistoryReady: hasRangeHistory || rangeDelta.ready || hasRangeComparableHistory,
+      rangeHistoryComplete: hasRangeHistory || rangeDelta.ready,
       historyCoverageDays: hasWeekHistory && current.repository.starHistoryFrom
         ? getCoverageDays(current.fetchedAt, current.repository.starHistoryFrom)
-        : weekDelta.coverageDays,
+        : hasWeekComparableHistory
+          ? Math.max(1, weekDelta.coverageDays)
+          : weekDelta.coverageDays,
     });
   }
 
@@ -314,9 +363,52 @@ export async function getDashboardData(options?: {
       totalWeeklyStars: items.reduce((sum, item) => sum + item.weeklyStars, 0),
       topLanguage,
       freshestProject,
+      weeklyCoverageDays: Math.min(
+        7,
+        items.reduce((max, item) => Math.max(max, item.historyCoverageDays), 0),
+      ),
+      weeklyCoverageComplete: items.some((item) => item.weeklyHistoryComplete),
     },
     heatmap: buildHeatmap(grouped, dates.to),
   };
 
   return payload;
+}
+
+function normalizeDashboardOptions(options?: {
+  range?: DashboardRange;
+  weekKey?: string | null;
+  from?: string | null;
+  to?: string | null;
+}) {
+  return {
+    range: options?.range ?? "week",
+    weekKey: options?.weekKey ?? null,
+    from: options?.from ?? null,
+    to: options?.to ?? null,
+  };
+}
+
+const getCachedDashboardData = memoizeWithTTL(
+  "dashboard-data",
+  CACHE_WINDOWS.dashboard,
+  async (cacheKey: string) => {
+    const options = JSON.parse(cacheKey) as {
+      range?: DashboardRange;
+      weekKey?: string | null;
+      from?: string | null;
+      to?: string | null;
+    };
+
+    return fetchDashboardData(options);
+  },
+);
+
+export async function getDashboardData(options?: {
+  range?: DashboardRange;
+  weekKey?: string | null;
+  from?: string | null;
+  to?: string | null;
+}) {
+  return getCachedDashboardData(JSON.stringify(normalizeDashboardOptions(options)));
 }

@@ -18,13 +18,16 @@ export type DashboardItem = {
   rangeStars: number;
   rangeLabel: string;
   score: number;
+  hotReason: string;
   healthScore: number;
   issuePressure: number;
   lastPushedAt: string | null;
   lastCollectedAt: string;
   weeklyHistoryReady: boolean;
+  weeklyHistoryComplete: boolean;
   todayHistoryReady: boolean;
   rangeHistoryReady: boolean;
+  rangeHistoryComplete: boolean;
   historyCoverageDays: number;
 };
 
@@ -36,6 +39,8 @@ export type DashboardSummary = {
   totalWeeklyStars: number;
   topLanguage: string;
   freshestProject: string | null;
+  weeklyCoverageDays: number;
+  weeklyCoverageComplete: boolean;
 };
 
 export type HeatmapCell = {
@@ -105,4 +110,79 @@ export type RepositoryDetailPayload = {
     forks: number;
   }>;
   recommendations: RepositoryRecommendation[];
+};
+
+export type CollectionPreviewRepository = {
+  repositoryId: number;
+  fullName: string;
+  owner: string;
+  name: string;
+  htmlUrl: string;
+  description: string | null;
+  language: string | null;
+  weeklyStars: number;
+  rangeStars: number;
+  stars: number;
+  forks: number;
+  hotReason: string;
+};
+
+export type CollectionListItem = {
+  slug: string;
+  name: string;
+  description: string;
+  featured: boolean;
+  sortOrder: number;
+  coverImage: string | null;
+  tags: string[];
+  repositoryCount: number;
+  totalStars: number;
+  starsAdded: number;
+  prsOpened: number;
+  issuesOpened: number;
+  activeContributors: number;
+  subscriptionCount: number;
+  updatedAt: string;
+  topRepositories: CollectionPreviewRepository[];
+};
+
+export type CollectionRelatedItem = {
+  slug: string;
+  name: string;
+  tags: string[];
+  repositoryCount: number;
+};
+
+export type CollectionTrendPoint = {
+  date: string;
+  starsAdded: number;
+  prsOpened: number;
+  prsMerged: number;
+  issuesOpened: number;
+  issuesClosed: number;
+  activeContributors: number;
+};
+
+export type CollectionDetailPayload = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  featured: boolean;
+  coverImage: string | null;
+  tags: string[];
+  generatedAt: string;
+  subscriptionCount: number;
+  summary: {
+    repositoryCount: number;
+    totalStars: number;
+    totalForks: number;
+    weeklyStars: number;
+    openIssues: number;
+    activeContributors: number;
+  };
+  repositories: CollectionPreviewRepository[];
+  trend: CollectionTrendPoint[];
+  relatedCollections: CollectionRelatedItem[];
+  methodologyNote: string;
 };

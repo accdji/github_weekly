@@ -2,7 +2,6 @@
 
 import { startTransition, useDeferredValue, useEffect, useState, useTransition } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import {
   DailyHeatmap,
   LanguageDistributionChart,
@@ -11,13 +10,13 @@ import {
   formatCompactNumber,
 } from "@/components/dashboard-visuals";
 import { RepositoryDrawer } from "@/components/repository-drawer";
+import { SiteHeader } from "@/components/site-header";
 import type { DashboardItem, DashboardPayload, DashboardRange, RepositoryDetailPayload } from "@/lib/dashboard-types";
 import type { Dictionary, Locale } from "@/lib/i18n";
 
 type ViewMode = "table" | "cards";
 type SortKey = "rangeStars" | "stars" | "weeklyStars" | "forks" | "updated" | "healthScore";
 type SortOrder = "asc" | "desc";
-type ScheduleMode = "hourly" | "daily" | "weekly";
 
 type SavedPreferences = {
   range: DashboardRange;
@@ -34,20 +33,12 @@ type SavedPreferences = {
   compare: number[];
   read: number[];
   tags: Record<string, string[]>;
-  schedule: {
-    enabled: boolean;
-    mode: ScheduleMode;
-    hour: number;
-    minute: number;
-    weekday: number;
-    lastRunAt: string | null;
-  };
   subscriptions: {
     keywords: string[];
   };
 };
 
-const STORAGE_KEY = "github-weekly-dashboard-preferences";
+const STORAGE_KEY = "ostid-user-settings";
 
 function toLocalInputValue(value: string | null) {
   return value ? value.slice(0, 10) : "";
@@ -105,7 +96,7 @@ function parsePreferences() {
     return null;
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem("open-source-trend-intelligence-desk-preferences");
 
   if (!raw) {
     return null;
@@ -116,17 +107,6 @@ function parsePreferences() {
   } catch {
     return null;
   }
-}
-
-function createDefaultSchedule() {
-  return {
-    enabled: false,
-    mode: "daily" as ScheduleMode,
-    hour: 9,
-    minute: 0,
-    weekday: 1,
-    lastRunAt: null as string | null,
-  };
 }
 
 function createDefaultPreferences(initialData: DashboardPayload): SavedPreferences {
@@ -145,7 +125,6 @@ function createDefaultPreferences(initialData: DashboardPayload): SavedPreferenc
     compare: [],
     read: [],
     tags: {},
-    schedule: createDefaultSchedule(),
     subscriptions: {
       keywords: [],
     },
@@ -171,6 +150,13 @@ function mergeUnique(values: string[]) {
 
 function formatDelta(value: number, ready: boolean) {
   return ready ? `+${formatCompactNumber(value)}` : "--";
+}
+
+function buildCoverageMessage(locale: Locale, coverageDays: number) {
+  const safeDays = Math.max(1, Math.min(7, coverageDays));
+  return locale === "zh-CN"
+    ? `当前本周 Star 为最近 ${safeDays} 天的尽力统计，系统会在满 7 天后自动切换为完整周口径。`
+    : `Weekly stars currently use best-effort coverage for the latest ${safeDays} day(s) and will switch to full 7-day coverage automatically.`;
 }
 
 export function DashboardApp({
@@ -200,7 +186,6 @@ export function DashboardApp({
   const [readIds, setReadIds] = useState<number[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [tags, setTags] = useState<Record<string, string[]>>({});
-  const [schedule, setSchedule] = useState(createDefaultSchedule());
   const [subscriptionInput, setSubscriptionInput] = useState("");
   const [subscriptionKeywords, setSubscriptionKeywords] = useState<string[]>([]);
   const [notices, setNotices] = useState<string[]>([]);
@@ -208,15 +193,46 @@ export function DashboardApp({
   const [details, setDetails] = useState<Record<string, RepositoryDetailPayload>>({});
   const [hydrated, setHydrated] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isCollecting, setIsCollecting] = useState(false);
   const [isPending, startUiTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
 
   const itemMap = Object.fromEntries(data.items.map((item) => [item.repositoryId, item]));
+  const dashboardCopy = {
+    liveLabel: locale === "zh-CN" ? "系统 / 实时" : "SYS / LIVE",
+    liveFooter: locale === "zh-CN" ? "后端任务 / GitHub 搜索 / 排行构建 / 双语界面" : "pipeline / github-search / ranking / bilingual-ui",
+    jobsNote:
+      locale === "zh-CN"
+        ? "现在由后端任务统一负责采集、排行构建和精选集合同步，浏览器侧调度已经移除。"
+        : "Backend jobs now own collection, ranking, and collections sync. Browser-side scheduling has been removed.",
+    subscriptionMatched: (fullName: string) =>
+      locale === "zh-CN" ? `${fullName} 命中了你的订阅关键词。` : `${fullName} matched your subscriptions.`,
+    subscriptionPlaceholder: locale === "zh-CN" ? "例如：ai, rust, agent" : "ai, rust, agent",
+    unknownLanguage: locale === "zh-CN" ? "未知" : "Unknown",
+  };
 
   async function copyText(value: string, feedback: string) {
     await navigator.clipboard.writeText(value);
     setNotices((current) => [feedback, ...current].slice(0, 4));
+  }
+
+  async function persistKeywords(nextKeywords: string[]) {
+    const keywords = mergeUnique(nextKeywords);
+
+    if (!keywords.length) {
+      return;
+    }
+
+    await fetch("/api/subscriptions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        locale,
+        channel: "in_app",
+        keywords,
+      }),
+    });
   }
 
   function buildQueryString(next?: Partial<{ range: DashboardRange; weekKey: string | null; from: string; to: string }>) {
@@ -305,51 +321,17 @@ export function DashboardApp({
       });
 
       if (matches.length) {
-        const messages = matches.slice(0, 2).map((item) => `${item.fullName} matched your subscriptions.`);
+        const messages = matches.slice(0, 2).map((item) => dashboardCopy.subscriptionMatched(item.fullName));
         setNotices((current) => [...messages, ...current].slice(0, 4));
 
         if ("Notification" in window && Notification.permission === "granted") {
           for (const message of messages) {
-            new Notification("GitHub Weekly", { body: message });
+            new Notification(dictionary.nav.title, { body: message });
           }
         }
       }
     } finally {
       setIsRefreshing(false);
-    }
-  }
-
-  async function triggerCollection(manual = true) {
-    setIsCollecting(true);
-
-    try {
-      const response = await fetch("/api/jobs/collect", { method: "POST" });
-
-      if (!response.ok) {
-        throw new Error("Failed to trigger collection");
-      }
-
-      const payload = (await response.json()) as { dashboard: DashboardPayload };
-      startTransition(() => {
-        setData(payload.dashboard);
-      });
-
-      if (manual) {
-        setNotices((current) => [`${dictionary.actions.trigger} OK`, ...current].slice(0, 4));
-      }
-
-      if (subscriptionKeywords.length) {
-        const matches = payload.dashboard.items.filter((item) => {
-          const text = `${item.fullName} ${item.description ?? ""} ${item.owner}`.toLowerCase();
-          return subscriptionKeywords.map(normalizeText).some((keyword) => text.includes(keyword));
-        });
-
-        if (matches.length) {
-          setNotices((current) => [...matches.slice(0, 2).map((item) => `${item.fullName} matched your subscriptions.`), ...current].slice(0, 4));
-        }
-      }
-    } finally {
-      setIsCollecting(false);
     }
   }
 
@@ -397,7 +379,6 @@ export function DashboardApp({
     setCompareIds(next.compare);
     setReadIds(next.read);
     setTags(next.tags);
-    setSchedule(next.schedule);
     setSubscriptionKeywords(next.subscriptions.keywords);
     setHydrated(true);
   }, [initialData, searchParams]);
@@ -422,7 +403,6 @@ export function DashboardApp({
       compare: compareIds,
       read: readIds,
       tags,
-      schedule,
       subscriptions: {
         keywords: subscriptionKeywords,
       },
@@ -444,7 +424,6 @@ export function DashboardApp({
     pathname,
     range,
     readIds,
-    schedule,
     search,
     selectedLanguages,
     sortKey,
@@ -456,83 +435,6 @@ export function DashboardApp({
     viewMode,
     weekKey,
   ]);
-
-  useEffect(() => {
-    if (!hydrated || !schedule.enabled) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      void (async () => {
-        const now = new Date();
-        const lastRun = schedule.lastRunAt ? new Date(schedule.lastRunAt) : null;
-        const sameMinute = now.getMinutes() === schedule.minute;
-        const sameHour = now.getHours() === schedule.hour;
-        const sameWeekday = now.getDay() === schedule.weekday;
-        const alreadyRanThisWindow =
-          lastRun &&
-          lastRun.getUTCFullYear() === now.getUTCFullYear() &&
-          lastRun.getUTCMonth() === now.getUTCMonth() &&
-          lastRun.getUTCDate() === now.getUTCDate() &&
-          lastRun.getUTCHours() === now.getUTCHours() &&
-          lastRun.getUTCMinutes() === now.getUTCMinutes();
-
-        if (alreadyRanThisWindow) {
-          return;
-        }
-
-        const shouldRun =
-          (schedule.mode === "hourly" && sameMinute) ||
-          (schedule.mode === "daily" && sameHour && sameMinute) ||
-          (schedule.mode === "weekly" && sameWeekday && sameHour && sameMinute);
-
-        if (!shouldRun) {
-          return;
-        }
-
-        await triggerCollection(false);
-        setSchedule((current) => ({
-          ...current,
-          lastRunAt: new Date().toISOString(),
-        }));
-      })();
-    }, 60000);
-    void (async () => {
-      const now = new Date();
-      const lastRun = schedule.lastRunAt ? new Date(schedule.lastRunAt) : null;
-      const sameMinute = now.getMinutes() === schedule.minute;
-      const sameHour = now.getHours() === schedule.hour;
-      const sameWeekday = now.getDay() === schedule.weekday;
-      const alreadyRanThisWindow =
-        lastRun &&
-        lastRun.getUTCFullYear() === now.getUTCFullYear() &&
-        lastRun.getUTCMonth() === now.getUTCMonth() &&
-        lastRun.getUTCDate() === now.getUTCDate() &&
-        lastRun.getUTCHours() === now.getUTCHours() &&
-        lastRun.getUTCMinutes() === now.getUTCMinutes();
-
-      if (alreadyRanThisWindow) {
-        return;
-      }
-
-      const shouldRun =
-        (schedule.mode === "hourly" && sameMinute) ||
-        (schedule.mode === "daily" && sameHour && sameMinute) ||
-        (schedule.mode === "weekly" && sameWeekday && sameHour && sameMinute);
-
-      if (!shouldRun) {
-        return;
-      }
-
-      await triggerCollection(false);
-      setSchedule((current) => ({
-        ...current,
-        lastRunAt: new Date().toISOString(),
-      }));
-    })();
-
-    return () => window.clearInterval(timer);
-  }, [hydrated, schedule, subscriptionKeywords]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -587,6 +489,7 @@ export function DashboardApp({
     .map((item) => details[item.fullName])
     .filter((item): item is RepositoryDetailPayload => Boolean(item));
   const selectedCount = selectedIds.length;
+  const topLanguageValue = data.summary.topLanguage === "Unknown" && locale === "zh-CN" ? dashboardCopy.unknownLanguage : data.summary.topLanguage;
   const summaryItems = [
     { label: dictionary.summary.totalProjects, value: String(filteredItems.length), accent: "sand" },
     {
@@ -603,14 +506,19 @@ export function DashboardApp({
         : "--",
       accent: "jade",
     },
-    { label: dictionary.summary.topLanguage, value: data.summary.topLanguage, accent: "ink" },
+    { label: dictionary.summary.topLanguage, value: topLanguageValue, accent: "ink" },
   ] as const;
   const heroSignals = [
     { label: dictionary.filters.timeRange, value: data.rangeLabel },
     { label: dictionary.sections.compare, value: `${compareIds.length}/5` },
     { label: dictionary.sections.favorites, value: String(favorites.length) },
-    { label: dictionary.sections.autoSchedule, value: schedule.enabled ? dictionary.misc.yes : dictionary.misc.no },
+    { label: dictionary.summary.lastFetchedAt, value: formatDateTime(data.lastFetchedAt, locale) },
   ] as const;
+  const partialWeeklyCoverage = filteredItems.some((item) => item.weeklyHistoryReady && !item.weeklyHistoryComplete);
+  const bestCoverageDays = Math.min(
+    7,
+    filteredItems.reduce((max, item) => Math.max(max, item.historyCoverageDays), 0),
+  );
 
   return (
     <>
@@ -618,13 +526,7 @@ export function DashboardApp({
         <section className="masthead">
           <div className="masthead__mesh" />
           <div className="masthead__grid" />
-          <div className="masthead__nav">
-            <div>
-              <div className="brand-mark">{dictionary.nav.title}</div>
-              <p className="brand-note">{dictionary.nav.subtitle}</p>
-            </div>
-            <LanguageSwitcher locale={locale} />
-          </div>
+          <SiteHeader locale={locale} />
           <div className="masthead__body">
             <div className="masthead__copy">
               <p className="eyebrow">{dictionary.hero.kicker}</p>
@@ -639,22 +541,19 @@ export function DashboardApp({
                 ))}
               </div>
               <div className="action-row">
-                <button className="primary-button" type="button" onClick={() => void triggerCollection()} disabled={isCollecting}>
-                  {isCollecting ? dictionary.actions.triggering : dictionary.actions.trigger}
-                </button>
                 <button className="secondary-button" type="button" onClick={() => void refreshDashboard()} disabled={isRefreshing}>
                   {isRefreshing ? dictionary.actions.refreshing : dictionary.actions.refresh}
                 </button>
-                <button className="secondary-button" type="button" onClick={() => downloadFile("github-weekly.csv", serializeCsv(filteredItems), "text/csv")}>
+                <button className="secondary-button" type="button" onClick={() => downloadFile("open-source-trend-intelligence-desk.csv", serializeCsv(filteredItems), "text/csv")}>
                   {dictionary.actions.exportCsv}
                 </button>
-                <button className="secondary-button" type="button" onClick={() => downloadFile("github-weekly.json", JSON.stringify(filteredItems, null, 2), "application/json")}>
+                <button className="secondary-button" type="button" onClick={() => downloadFile("open-source-trend-intelligence-desk.json", JSON.stringify(filteredItems, null, 2), "application/json")}>
                   {dictionary.actions.exportJson}
                 </button>
                 <button
                   className="secondary-button"
                   type="button"
-                  onClick={() => downloadFile("github-weekly-report.md", serializeMarkdown(filteredItems, dictionary.nav.title), "text/markdown")}
+                  onClick={() => downloadFile("open-source-trend-intelligence-desk-report.md", serializeMarkdown(filteredItems, dictionary.nav.title), "text/markdown")}
                 >
                   {dictionary.actions.exportReport}
                 </button>
@@ -670,7 +569,7 @@ export function DashboardApp({
             <div className="summary-grid">
               <article className="signal-panel">
                 <div className="signal-panel__top">
-                  <span className="signal-panel__title">SYS / LIVE</span>
+                  <span className="signal-panel__title">{dashboardCopy.liveLabel}</span>
                   <span className="signal-panel__dot" />
                 </div>
                 <div className="signal-panel__grid">
@@ -692,7 +591,7 @@ export function DashboardApp({
                   </div>
                 </div>
                 <div className="signal-panel__footer">
-                  <span>pipeline / github-search / ranking / bilingual-ui</span>
+                  <span>{dashboardCopy.liveFooter}</span>
                 </div>
               </article>
               {summaryItems.map((item) => (
@@ -713,6 +612,12 @@ export function DashboardApp({
         {!filteredItems.some((item) => item.weeklyHistoryReady) ? (
           <section className="notice-strip">
             <span>{dictionary.misc.historyPending}</span>
+          </section>
+        ) : null}
+
+        {partialWeeklyCoverage ? (
+          <section className="notice-strip">
+            <span>{buildCoverageMessage(locale, bestCoverageDays)}</span>
           </section>
         ) : null}
 
@@ -784,7 +689,7 @@ export function DashboardApp({
               <select value={topN} onChange={(event) => setTopN(Number(event.target.value))}>
                 {[10, 20, 50, 100].map((count) => (
                   <option key={count} value={count}>
-                    Top {count}
+                    {locale === "zh-CN" ? `前 ${count}` : `Top ${count}`}
                   </option>
                 ))}
               </select>
@@ -858,7 +763,7 @@ export function DashboardApp({
                     <button
                       className="ghost-button"
                       type="button"
-                      onClick={() => downloadFile("github-weekly-selected.csv", serializeCsv(filteredItems.filter((item) => selectedIds.includes(item.repositoryId))), "text/csv")}
+                      onClick={() => downloadFile("open-source-trend-intelligence-selected.csv", serializeCsv(filteredItems.filter((item) => selectedIds.includes(item.repositoryId))), "text/csv")}
                     >
                       {dictionary.actions.batchExport}
                     </button>
@@ -1062,75 +967,19 @@ export function DashboardApp({
             </section>
 
             <section className="signals-grid">
-              <LanguageDistributionChart items={filteredItems} title={dictionary.charts.languageDistribution} />
+              <LanguageDistributionChart items={filteredItems} title={dictionary.charts.languageDistribution} unknownLabel={dashboardCopy.unknownLanguage} />
               <TrendComparisonChart details={compareDetails} title={dictionary.charts.starTrend} emptyLabel={dictionary.charts.empty} />
               <DailyHeatmap cells={data.heatmap} title={dictionary.charts.dailyHeatmap} />
             </section>
           </div>
           <aside className="dashboard-grid__rail">
             <section className="rail-card">
-              <p className="eyebrow">{dictionary.sections.autoSchedule}</p>
-              <h3>{dictionary.sections.autoSchedule}</h3>
-              <p>{dictionary.schedule.description}</p>
-              <label className="checkbox-line">
-                <input
-                  type="checkbox"
-                  checked={schedule.enabled}
-                  onChange={(event) => setSchedule((current) => ({ ...current, enabled: event.target.checked }))}
-                />
-                <span>{dictionary.schedule.enabled}</span>
-              </label>
-              <div className="rail-form">
-                <label className="field">
-                  <span>{dictionary.schedule.mode}</span>
-                  <select value={schedule.mode} onChange={(event) => setSchedule((current) => ({ ...current, mode: event.target.value as ScheduleMode }))}>
-                    <option value="hourly">{dictionary.schedule.hourly}</option>
-                    <option value="daily">{dictionary.schedule.daily}</option>
-                    <option value="weekly">{dictionary.schedule.weekly}</option>
-                  </select>
-                </label>
-                {schedule.mode !== "hourly" ? (
-                  <label className="field">
-                    <span>{dictionary.schedule.hour}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="23"
-                      value={schedule.hour}
-                      onChange={(event) => setSchedule((current) => ({ ...current, hour: Number(event.target.value) }))}
-                    />
-                  </label>
-                ) : null}
-                <label className="field">
-                  <span>{dictionary.schedule.minute}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    value={schedule.minute}
-                    onChange={(event) => setSchedule((current) => ({ ...current, minute: Number(event.target.value) }))}
-                  />
-                </label>
-                {schedule.mode === "weekly" ? (
-                  <label className="field">
-                    <span>{dictionary.schedule.weekday}</span>
-                    <select value={schedule.weekday} onChange={(event) => setSchedule((current) => ({ ...current, weekday: Number(event.target.value) }))}>
-                      {dictionary.schedule.weekdays.map((label, index) => (
-                        <option key={label} value={index}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="secondary-button secondary-button--full"
-                onClick={() => setNotices((current) => [dictionary.misc.scheduleSaved, ...current].slice(0, 4))}
-              >
-                {dictionary.actions.savePreferences}
-              </button>
+              <p className="eyebrow">{dictionary.sections.jobs}</p>
+              <h3>{dictionary.sections.jobs}</h3>
+              <p>{dashboardCopy.jobsNote}</p>
+              <a className="secondary-button secondary-button--full" href={`/${locale}/jobs`}>
+                {dictionary.nav.links.jobs}
+              </a>
             </section>
 
             <section className="rail-card">
@@ -1140,13 +989,15 @@ export function DashboardApp({
               <label className="field">
                 <span>{dictionary.subscriptions.keywords}</span>
                 <div className="inline-form">
-                  <input value={subscriptionInput} onChange={(event) => setSubscriptionInput(event.target.value)} placeholder="ai, rust, agent" />
+                  <input value={subscriptionInput} onChange={(event) => setSubscriptionInput(event.target.value)} placeholder={dashboardCopy.subscriptionPlaceholder} />
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() => {
-                      setSubscriptionKeywords((current) => mergeUnique([...current, ...subscriptionInput.split(",")]));
+                    onClick={async () => {
+                      const nextKeywords = mergeUnique([...subscriptionKeywords, ...subscriptionInput.split(",")]);
+                      setSubscriptionKeywords(nextKeywords);
                       setSubscriptionInput("");
+                      await persistKeywords(nextKeywords);
                     }}
                   >
                     {dictionary.actions.add}
@@ -1226,6 +1077,7 @@ export function DashboardApp({
       <RepositoryDrawer
         detail={drawerRepo ? details[drawerRepo.fullName] ?? null : null}
         dictionary={dictionary}
+        locale={locale}
         onClose={() => setDrawerRepo(null)}
       />
 

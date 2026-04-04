@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dictionary } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 import type { RepositoryDetailPayload } from "@/lib/dashboard-types";
 import { formatCompactNumber } from "@/components/dashboard-visuals";
 
@@ -19,10 +20,12 @@ function formatHours(value: number | null) {
 export function RepositoryDrawer({
   detail,
   dictionary,
+  locale,
   onClose,
 }: {
   detail: RepositoryDetailPayload | null;
   dictionary: Dictionary;
+  locale: Locale;
   onClose: () => void;
 }) {
   return (
@@ -40,6 +43,14 @@ export function RepositoryDrawer({
               <button className="ghost-button" type="button" onClick={onClose}>
                 {dictionary.actions.close}
               </button>
+            </div>
+            <div className="row-actions">
+              <a className="secondary-button" href={`/${locale}/repo/${detail.fullName.split("/")[0]}/${detail.fullName.split("/")[1]}`}>
+                {dictionary.sections.history}
+              </a>
+              <a className="secondary-button" href={detail.htmlUrl} target="_blank" rel="noreferrer">
+                {dictionary.actions.openGithub}
+              </a>
             </div>
 
             <section className="drawer__section">

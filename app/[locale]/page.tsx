@@ -3,6 +3,8 @@ import { DashboardApp } from "@/components/dashboard-app";
 import { getDashboardData } from "@/lib/dashboard";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 
+export const revalidate = 120;
+
 type PageProps = {
   params: Promise<{
     locale: string;
