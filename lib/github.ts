@@ -1,6 +1,10 @@
 const GITHUB_API = "https://api.github.com";
 const GITHUB_GRAPHQL_API = "https://api.github.com/graphql";
 
+function getGitHubToken() {
+  return process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
+}
+
 export type GitHubRepository = {
   id: number;
   name: string;
@@ -69,15 +73,17 @@ function buildHeaders(accept?: string) {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  if (process.env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const token = getGitHubToken();
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   return headers;
 }
 
 export function hasGitHubToken() {
-  return Boolean(process.env.GITHUB_TOKEN);
+  return Boolean(getGitHubToken());
 }
 
 async function githubFetch<T>(path: string, accept?: string) {

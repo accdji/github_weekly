@@ -38,7 +38,7 @@ Environment preparation:
 1. Run `npm install`
 2. Run `npm run prisma:generate`
 3. Run `npm run db:push`
-4. Set `GITHUB_TOKEN` in `.env` if authenticated GitHub requests are required
+4. Set `GH_TOKEN` in `.env` if authenticated GitHub requests are required
 
 Key commands:
 

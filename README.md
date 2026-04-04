@@ -31,7 +31,7 @@ Open Source Trend Intelligence Desk is a bilingual product for discovering risin
 
 1. Install dependencies with `npm install`
 2. Copy `.env.example` to `.env`
-3. Fill `GITHUB_TOKEN` if you want authenticated GitHub requests
+3. Fill `GH_TOKEN` if you want authenticated GitHub requests
 4. Run `npm run prisma:generate`
 5. Run `npm run db:push`
 6. Run `npm run collect:daily`

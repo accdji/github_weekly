@@ -128,7 +128,7 @@ npm run build:prod
 
 ```bash
 DATABASE_URL=postgresql://...
-GITHUB_TOKEN=ghp_xxx
+GH_TOKEN=ghp_xxx
 GITHUB_SEARCH_QUERY=stars:>200
 GITHUB_TOP_LANGUAGES=TypeScript,Python,Go,Rust
 COLLECT_PER_QUERY=30
@@ -205,7 +205,7 @@ npm run build:prod
 ### Secrets
 
 - `DATABASE_URL`
-- `GITHUB_TOKEN`
+- `GH_TOKEN`
 
 ### Variables
 
@@ -229,7 +229,7 @@ npm run build:prod
 在 Vercel 项目中至少补这几个环境变量：
 
 - `DATABASE_URL`
-- `GITHUB_TOKEN`
+- `GH_TOKEN`
 - `GITHUB_SEARCH_QUERY`
 - `GITHUB_TOP_LANGUAGES`
 - `COLLECT_PER_QUERY`

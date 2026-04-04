@@ -64,7 +64,7 @@ async function fetchAiContext() {
         "Install dependencies with `npm install`.",
         "Generate the Prisma client with `npm run prisma:generate`.",
         "Initialize the database with `npm run db:push`.",
-        "Set `GITHUB_TOKEN` in `.env` for authenticated GitHub collection runs.",
+        "Set `GH_TOKEN` in `.env` for authenticated GitHub collection runs.",
       ],
       note: "CLI commands are the operator-facing entry points for collection, diagnostics, exports, and manual data refresh.",
     },

@@ -38,7 +38,7 @@
 1. 运行 `npm install`
 2. 运行 `npm run prisma:generate`
 3. 运行 `npm run db:push`
-4. 如果需要认证 GitHub 请求，在 `.env` 中配置 `GITHUB_TOKEN`
+4. 如果需要认证 GitHub 请求，在 `.env` 中配置 `GH_TOKEN`
 
 核心命令：
 

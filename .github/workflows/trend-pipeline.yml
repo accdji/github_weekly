@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
       GITHUB_SEARCH_QUERY: ${{ vars.GITHUB_SEARCH_QUERY }}
       GITHUB_TOP_LANGUAGES: ${{ vars.GITHUB_TOP_LANGUAGES }}
       COLLECT_PER_QUERY: ${{ vars.COLLECT_PER_QUERY }}

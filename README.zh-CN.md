@@ -31,7 +31,7 @@
 
 1. 执行 `npm install`
 2. 将 `.env.example` 复制为 `.env`
-3. 如需使用 GitHub 认证请求，请填写 `GITHUB_TOKEN`
+3. 如需使用 GitHub 认证请求，请填写 `GH_TOKEN`
 4. 执行 `npm run prisma:generate`
 5. 执行 `npm run db:push`
 6. 执行 `npm run collect:daily`

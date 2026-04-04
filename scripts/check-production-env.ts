@@ -1,6 +1,5 @@
 const requiredVariables = [
   "DATABASE_URL",
-  "GITHUB_TOKEN",
   "GITHUB_TOP_LANGUAGES",
   "COLLECT_PER_QUERY",
   "GITHUB_STAR_HISTORY_DAYS",
@@ -22,6 +21,11 @@ for (const key of requiredVariables) {
 const databaseUrl = process.env.DATABASE_URL ?? "";
 if (!databaseUrl.startsWith("postgresql://") && !databaseUrl.startsWith("postgres://")) {
   fail("DATABASE_URL must start with postgresql:// or postgres://");
+}
+
+const gitHubToken = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
+if (!gitHubToken.trim()) {
+  console.warn("[env:check:prod] GH_TOKEN is missing. The pipeline can still run, but GitHub API rate limits may reduce stability.");
 }
 
 const collectPerQuery = Number(process.env.COLLECT_PER_QUERY);

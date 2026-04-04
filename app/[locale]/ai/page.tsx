@@ -134,7 +134,7 @@ export default async function AiPage({ params }: PageProps) {
         "执行 `npm install` 安装依赖。",
         "执行 `npm run prisma:generate` 生成 Prisma Client。",
         "执行 `npm run db:push` 初始化数据库结构。",
-        "如需认证 GitHub 请求，在 `.env` 中配置 `GITHUB_TOKEN`。",
+        "如需认证 GitHub 请求，在 `.env` 中配置 `GH_TOKEN`。",
       ]
     : context.cliSetup.prerequisites;
 

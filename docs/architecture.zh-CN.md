@@ -127,5 +127,5 @@
 - PostgreSQL
 - GitHub Actions 或 cron 调度
 - 后端专用采集入口或内部 job runner
-- 持久化配置 `DATABASE_URL` 与 `GITHUB_TOKEN`
+- 持久化配置 `DATABASE_URL` 与 `GH_TOKEN`
 - 大型代码改动后执行 GitNexus 刷新

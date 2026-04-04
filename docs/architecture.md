@@ -127,5 +127,5 @@ This keeps long-running work out of interactive page requests and prepares the p
 - PostgreSQL
 - GitHub Actions or cron for scheduling
 - backend-only ingestion endpoints or internal runners
-- persistent secrets for `DATABASE_URL` and `GITHUB_TOKEN`
+- persistent secrets for `DATABASE_URL` and `GH_TOKEN`
 - GitNexus refresh after major code changes
