@@ -17,11 +17,11 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      GITHUB_SEARCH_QUERY: ${{ vars.GITHUB_SEARCH_QUERY }}
-      GITHUB_TOP_LANGUAGES: ${{ vars.GITHUB_TOP_LANGUAGES }}
+      SEARCH_QUERY: ${{ vars.SEARCH_QUERY }}
+      TOP_LANGUAGES: ${{ vars.TOP_LANGUAGES }}
       COLLECT_PER_QUERY: ${{ vars.COLLECT_PER_QUERY }}
-      GITHUB_STAR_HISTORY_DAYS: ${{ vars.GITHUB_STAR_HISTORY_DAYS }}
-      GITHUB_STAR_HISTORY_MAX_PAGES: ${{ vars.GITHUB_STAR_HISTORY_MAX_PAGES }}
+      STAR_HISTORY_DAYS: ${{ vars.STAR_HISTORY_DAYS }}
+      STAR_HISTORY_MAX_PAGES: ${{ vars.STAR_HISTORY_MAX_PAGES }}
       JOB_TRIGGERED_BY: github-actions
     steps:
       - name: Checkout

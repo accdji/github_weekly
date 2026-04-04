@@ -1,9 +1,9 @@
 const requiredVariables = [
   "DATABASE_URL",
-  "GITHUB_TOP_LANGUAGES",
+  "TOP_LANGUAGES",
   "COLLECT_PER_QUERY",
-  "GITHUB_STAR_HISTORY_DAYS",
-  "GITHUB_STAR_HISTORY_MAX_PAGES",
+  "STAR_HISTORY_DAYS",
+  "STAR_HISTORY_MAX_PAGES",
 ] as const;
 
 function fail(message: string): never {
@@ -12,7 +12,11 @@ function fail(message: string): never {
 }
 
 for (const key of requiredVariables) {
-  const value = process.env[key];
+  const value =
+    process.env[key] ??
+    (key === "TOP_LANGUAGES" ? process.env.GITHUB_TOP_LANGUAGES : undefined) ??
+    (key === "STAR_HISTORY_DAYS" ? process.env.GITHUB_STAR_HISTORY_DAYS : undefined) ??
+    (key === "STAR_HISTORY_MAX_PAGES" ? process.env.GITHUB_STAR_HISTORY_MAX_PAGES : undefined);
   if (!value || !value.trim()) {
     fail(`Missing required environment variable: ${key}`);
   }
@@ -33,14 +37,14 @@ if (!Number.isFinite(collectPerQuery) || collectPerQuery <= 0) {
   fail("COLLECT_PER_QUERY must be a positive number");
 }
 
-const starHistoryDays = Number(process.env.GITHUB_STAR_HISTORY_DAYS);
+const starHistoryDays = Number(process.env.STAR_HISTORY_DAYS ?? process.env.GITHUB_STAR_HISTORY_DAYS);
 if (!Number.isFinite(starHistoryDays) || starHistoryDays <= 0) {
-  fail("GITHUB_STAR_HISTORY_DAYS must be a positive number");
+  fail("STAR_HISTORY_DAYS must be a positive number");
 }
 
-const starHistoryMaxPages = Number(process.env.GITHUB_STAR_HISTORY_MAX_PAGES);
+const starHistoryMaxPages = Number(process.env.STAR_HISTORY_MAX_PAGES ?? process.env.GITHUB_STAR_HISTORY_MAX_PAGES);
 if (!Number.isFinite(starHistoryMaxPages) || starHistoryMaxPages <= 0) {
-  fail("GITHUB_STAR_HISTORY_MAX_PAGES must be a positive number");
+  fail("STAR_HISTORY_MAX_PAGES must be a positive number");
 }
 
 console.log("[env:check:prod] Production environment variables look valid.");

@@ -5,6 +5,18 @@ function getGitHubToken() {
   return process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
 }
 
+function getSearchQueryEnv() {
+  return process.env.SEARCH_QUERY ?? process.env.GITHUB_SEARCH_QUERY ?? "";
+}
+
+function getTopLanguagesEnv() {
+  return process.env.TOP_LANGUAGES ?? process.env.GITHUB_TOP_LANGUAGES ?? "TypeScript,JavaScript,Python,Go,Rust";
+}
+
+function getStarHistoryMaxPagesEnv() {
+  return process.env.STAR_HISTORY_MAX_PAGES ?? process.env.GITHUB_STAR_HISTORY_MAX_PAGES ?? "20";
+}
+
 export type GitHubRepository = {
   id: number;
   name: string;
@@ -147,7 +159,7 @@ async function githubGraphqlFetch<T>(query: string, variables: Record<string, un
 }
 
 function getLanguageQueries(): string[] {
-  const envValue = process.env.GITHUB_TOP_LANGUAGES ?? "TypeScript,JavaScript,Python,Go,Rust";
+  const envValue = getTopLanguagesEnv();
   return envValue
     .split(",")
     .map((item) => item.trim())
@@ -176,7 +188,7 @@ function summarizeReadme(markdown: string) {
 }
 
 export async function searchCandidateRepositories(): Promise<GitHubRepository[]> {
-  const baseQuery = process.env.GITHUB_SEARCH_QUERY ?? getDefaultSearchQuery();
+  const baseQuery = getSearchQueryEnv() || getDefaultSearchQuery();
   const perPage = Number(process.env.COLLECT_PER_QUERY ?? "20");
   const deduped = new Map<number, GitHubRepository>();
   const queries = [baseQuery, ...getLanguageQueries().map((language) => `${baseQuery} language:${language}`)];
@@ -267,7 +279,7 @@ export async function fetchRecentStarredAtDates(owner: string, name: string, sin
     }
   `;
 
-  const maxPages = Number(process.env.GITHUB_STAR_HISTORY_MAX_PAGES ?? "20");
+  const maxPages = Number(getStarHistoryMaxPagesEnv());
   let cursor: string | null = null;
   let page = 0;
   const collected: string[] = [];

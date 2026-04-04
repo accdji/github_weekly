@@ -5,9 +5,10 @@ function startOfUtcDay(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-export function getStarHistoryStart(days = Number(process.env.GITHUB_STAR_HISTORY_DAYS ?? "35")) {
+export function getStarHistoryStart(days = Number(process.env.STAR_HISTORY_DAYS ?? process.env.GITHUB_STAR_HISTORY_DAYS ?? "35")) {
+  const normalizedDays = Number(process.env.STAR_HISTORY_DAYS ?? process.env.GITHUB_STAR_HISTORY_DAYS ?? String(days));
   const now = new Date();
-  return startOfUtcDay(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days)));
+  return startOfUtcDay(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - normalizedDays)));
 }
 
 export function hasCoveredStarHistory(historyFrom: Date | null, requiredFrom: Date) {
