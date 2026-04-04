@@ -2,6 +2,19 @@
 
 ## 结论先说
 
+当前线上地址：
+
+- `https://github-weekly.onrender.com`
+
+当前线上形态：
+
+- Web：Render Free Web Service
+- 数据库：Neon PostgreSQL
+- 定时更新：GitHub Actions `Trend Pipeline`
+- 工作流状态：`active`
+- 最近一次已验证成功的运行：2026-04-04 23:47 至 23:49，中国标准时间，触发方式为 `workflow_dispatch`
+- 定时配置：每天 `01:00 UTC`，即中国标准时间每天 `09:00`
+
 这个项目当前形态 **不适合直接部署到 GitHub Pages**。
 
 原因很直接：
