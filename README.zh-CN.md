@@ -13,12 +13,16 @@
 
 ## 线上状态
 
-- 线上地址：`https://github-weekly.onrender.com`
+- 线上地址：[github-weekly.onrender.com](https://github-weekly.onrender.com)
 - 托管平台：Render Free Web Service
 - 生产数据库：Neon PostgreSQL
 - 定时更新：GitHub Actions `Trend Pipeline`
 - 最近一次已验证成功的运行：2026-04-04 23:47 至 23:49，中国标准时间，触发方式为 `workflow_dispatch`
 - 定时执行时间：每天中国标准时间 `09:00`，即 `01:00 UTC`
+
+## 反馈渠道
+
+- 如有 Bug 或修复需求，请发送邮件至：[2290828498@qq.com](mailto:2290828498@qq.com)
 
 ## 本地启动
 
@@ -74,7 +78,7 @@
 - 更新代码：推送到 `main`，Render 自动重新部署
 - 更新数据：GitHub Actions 每天执行 `Trend Pipeline`
 - 更新表结构：执行 `npm run prisma:generate:prod` 和 `npm run db:push:prod`
-- 运行验证：检查 `https://github-weekly.onrender.com` 和 `https://github-weekly.onrender.com/api/dashboard`
+- 运行验证：检查[线上站点](https://github-weekly.onrender.com)和[仪表盘接口](https://github-weekly.onrender.com/api/dashboard)
 
 ## 页面路由
 

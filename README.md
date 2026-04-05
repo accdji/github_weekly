@@ -13,12 +13,16 @@ Open Source Trend Intelligence Desk is a bilingual GitHub trend product for disc
 
 ## Live Status
 
-- Live URL: `https://github-weekly.onrender.com`
+- Live URL: [github-weekly.onrender.com](https://github-weekly.onrender.com)
 - Hosting: Render Free Web Service
 - Production database: Neon PostgreSQL
 - Scheduled refresh: GitHub Actions `Trend Pipeline`
 - Latest verified successful run: 2026-04-04 23:47 to 23:49 CST via `workflow_dispatch`
 - Scheduled run time: daily at `09:00` China Standard Time (`01:00 UTC`)
+
+## Feedback
+
+- Bug reports and fix requests: [2290828498@qq.com](mailto:2290828498@qq.com)
 
 ## Quick Start
 
@@ -74,7 +78,7 @@ Optional production variable:
 - Code updates: push to `main`, Render redeploys automatically
 - Data updates: GitHub Actions runs `Trend Pipeline` daily
 - Schema updates: run `npm run prisma:generate:prod` and `npm run db:push:prod`
-- Runtime verification: check `https://github-weekly.onrender.com` and `https://github-weekly.onrender.com/api/dashboard`
+- Runtime verification: check [live site](https://github-weekly.onrender.com) and [dashboard API](https://github-weekly.onrender.com/api/dashboard)
 
 ## Routes
 

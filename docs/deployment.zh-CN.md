@@ -4,7 +4,7 @@
 
 当前线上地址：
 
-- `https://github-weekly.onrender.com`
+- [github-weekly.onrender.com](https://github-weekly.onrender.com)
 
 当前线上形态：
 
@@ -14,6 +14,10 @@
 - 工作流状态：`active`
 - 最近一次已验证成功的运行：2026-04-04 23:47 至 23:49，中国标准时间，触发方式为 `workflow_dispatch`
 - 定时配置：每天 `01:00 UTC`，即中国标准时间每天 `09:00`
+
+反馈渠道：
+
+- 如有 Bug 或修复需求，请发送邮件至：[2290828498@qq.com](mailto:2290828498@qq.com)
 
 这个项目当前形态 **不适合直接部署到 GitHub Pages**。
 
