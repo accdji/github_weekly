@@ -12,6 +12,7 @@
     "build:weekly": "tsx scripts/build-weekly.ts",
     "collections:sync": "tsx scripts/sync-collections.ts",
     "pipeline:run": "tsx scripts/run-pipeline.ts",
+    "worker:subscriptions": "tsx scripts/run-subscription-worker.ts",
     "ai:context": "tsx scripts/ai-context.ts",
     "ai:report": "tsx scripts/ai-report.ts",
     "ai:repo": "tsx scripts/ai-repo.ts",

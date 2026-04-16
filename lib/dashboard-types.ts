@@ -143,6 +143,7 @@ export type CollectionListItem = {
   activeContributors: number;
   subscriptionCount: number;
   updatedAt: string;
+  availableYears: number[];
   topRepositories: CollectionPreviewRepository[];
 };
 
@@ -172,6 +173,8 @@ export type CollectionDetailPayload = {
   coverImage: string | null;
   tags: string[];
   generatedAt: string;
+  selectedYear: number;
+  availableYears: number[];
   subscriptionCount: number;
   summary: {
     repositoryCount: number;
@@ -183,6 +186,16 @@ export type CollectionDetailPayload = {
   };
   repositories: CollectionPreviewRepository[];
   trend: CollectionTrendPoint[];
+  historicalSnapshots: Array<{
+    year: number;
+    repositoryCount: number;
+    totalStars: number;
+    starsAdded: number;
+    prsOpened: number;
+    issuesOpened: number;
+    activeContributors: number;
+    snapshotDate: string;
+  }>;
   relatedCollections: CollectionRelatedItem[];
   methodologyNote: string;
 };

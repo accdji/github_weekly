@@ -112,7 +112,7 @@ The intended execution model is:
 - jobs refresh repository data, rankings, collections, and subscription-facing snapshots
 - frontend pages read stored results
 
-This keeps long-running work out of interactive page requests and prepares the project for a future worker-based execution model.
+This keeps long-running work out of interactive page requests and now aligns with the dedicated worker-based execution model already used for subscription digest delivery.
 
 ## Deployment Notes
 

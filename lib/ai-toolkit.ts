@@ -48,6 +48,7 @@ async function fetchAiContext() {
       "npm run build:weekly",
       "npm run collections:sync",
       "npm run pipeline:run",
+      "npm run worker:subscriptions",
       "npm run ai:context",
       "npm run ai:report",
       "npm run ai:repo -- owner/name",
@@ -89,14 +90,21 @@ async function fetchAiContext() {
         goal: "Run the full backend ingestion and ranking pipeline",
         command: "npm run pipeline:run",
       },
+      {
+        goal: "Generate and deliver subscription digests through the dedicated worker",
+        command: "npm run worker:subscriptions",
+      },
     ],
     apiRoutes: [
       { route: "/api/dashboard", purpose: "Dashboard data payload" },
       { route: "/api/collections", purpose: "Collections gallery index" },
       { route: "/api/collections/[slug]", purpose: "Collection detail payload" },
       { route: "/api/subscriptions", purpose: "Keyword or collection subscription create/list" },
+      { route: "/api/subscriptions/verify", purpose: "Subscriber channel verification" },
       { route: "/api/ai/context", purpose: "Product manual context JSON" },
       { route: "/api/report", purpose: "Weekly markdown report" },
+      { route: "/api/collections/submissions", purpose: "Public collection submission and moderation workspace data" },
+      { route: "/api/workers/subscriptions", purpose: "Run the subscription digest worker" },
     ],
     freshness: {
       generatedAt: dashboard.generatedAt,
@@ -114,7 +122,7 @@ async function fetchAiContext() {
       {
         title: "Subscription center review",
         description:
-          "Use `/{locale}/subscriptions` to review the collection follows and keyword alerts stored by the backend.",
+          "Use `/{locale}/subscriptions` to review collection follows, repository follows, delivery logs, and management actions stored by the backend.",
       },
       {
         title: "Programmatic create",
@@ -124,7 +132,7 @@ async function fetchAiContext() {
       {
         title: "Current delivery boundary",
         description:
-          "This version stores subscription intent and follow relationships first. Full outbound delivery jobs are a separate backend milestone.",
+          "Delivery jobs, outbox logs, and the dedicated digest worker are now part of the product; external channels can be routed through email or webhook targets.",
       },
     ],
     subscriptionPayloadExample: {
@@ -198,7 +206,7 @@ async function fetchAiContext() {
       },
       {
         problem: "A subscription was created but no digest was delivered",
-        fix: "The current product persists subscription records first. Delivery jobs and outbound channels are planned as a later backend layer.",
+        fix: "Run `npm run worker:subscriptions` or trigger `POST /api/workers/subscriptions` to create and process delivery jobs.",
       },
       {
         problem: "GitNexus impact analysis reports a stale or locked graph",
@@ -206,9 +214,8 @@ async function fetchAiContext() {
       },
     ],
     limitations: [
-      "Subscriptions persist intent today, but outbound digest delivery is still a future backend milestone.",
-      "PR, issue, and contributor collection trends are scaffolded in the data model but not fully populated yet.",
-      "Weekly stars can be partial until enough comparable snapshots accumulate.",
+      "Weekly stars can still be partial until enough comparable snapshots accumulate.",
+      "External delivery quality depends on the target channel configuration provided by the subscriber.",
       "The `/ai` route remains for compatibility, even though the page is now the product manual.",
     ],
     stats: {
@@ -252,13 +259,20 @@ async function fetchAiContext() {
       "components/dashboard-app.tsx",
       "components/site-header.tsx",
       "components/collection-subscribe-form.tsx",
+      "components/repository-subscribe-form.tsx",
       "app/[locale]/subscriptions/page.tsx",
+      "app/[locale]/collections/submit/page.tsx",
+      "app/[locale]/collections/review/page.tsx",
       "app/api/subscriptions/route.ts",
+      "app/api/collections/submissions/route.ts",
+      "app/api/workers/subscriptions/route.ts",
       "lib/dashboard.ts",
       "lib/ranking.ts",
       "lib/star-history.ts",
       "lib/collections.ts",
       "lib/subscriptions.ts",
+      "lib/collection-submissions.ts",
+      "lib/workers.ts",
       "lib/ai-toolkit.ts",
       "prisma/schema.prisma",
     ],

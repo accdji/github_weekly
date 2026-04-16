@@ -55,15 +55,30 @@ function sumBy<T>(items: T[], getValue: (item: T) => number) {
   return items.reduce((total, item) => total + getValue(item), 0);
 }
 
-function overlayTrendSnapshots(series: CollectionTrendPoint[], snapshots: Array<{
-  date: Date;
-  starsAdded: number;
-  prsOpened: number;
-  prsMerged: number;
-  issuesOpened: number;
-  issuesClosed: number;
-  activeContributors: number;
-}>) {
+function estimatePrsFromStars(starsAdded: number) {
+  return starsAdded <= 0 ? 0 : Math.max(1, Math.round(starsAdded / 20));
+}
+
+function estimateIssuesFromStars(starsAdded: number) {
+  return starsAdded <= 0 ? 0 : Math.max(1, Math.round(starsAdded / 14));
+}
+
+function estimateContributorsFromStars(starsAdded: number) {
+  return starsAdded <= 0 ? 0 : Math.max(1, Math.round(Math.sqrt(starsAdded)));
+}
+
+function overlayTrendSnapshots(
+  series: CollectionTrendPoint[],
+  snapshots: Array<{
+    date: Date;
+    starsAdded: number;
+    prsOpened: number;
+    prsMerged: number;
+    issuesOpened: number;
+    issuesClosed: number;
+    activeContributors: number;
+  }>,
+) {
   const pointByDate = new Map(series.map((point) => [point.date, point]));
 
   for (const snapshot of snapshots) {
@@ -128,25 +143,213 @@ function buildRelatedCollections(input: {
     }));
 }
 
+function buildTrendSeries(input: {
+  year: number;
+  starStats: Array<{ date: Date; starsAdded: number }>;
+  pullRequestStats: Array<{ date: Date; opened: number; merged: number }>;
+  issueStats: Array<{ date: Date; opened: number; closed: number }>;
+  contributorStats: Array<{ weekStart: Date; activeContributors: number }>;
+}) {
+  const today = startOfDay(new Date());
+  const series = new Map<string, CollectionTrendPoint>();
+
+  for (let cursor = startOfYear(input.year); cursor <= today; cursor = addDays(cursor, 1)) {
+    const key = cursor.toISOString().slice(0, 10);
+    series.set(key, {
+      date: key,
+      starsAdded: 0,
+      prsOpened: 0,
+      prsMerged: 0,
+      issuesOpened: 0,
+      issuesClosed: 0,
+      activeContributors: 0,
+    });
+  }
+
+  for (const stat of input.starStats) {
+    const key = stat.date.toISOString().slice(0, 10);
+    const point = series.get(key);
+    if (point) {
+      point.starsAdded += stat.starsAdded;
+    }
+  }
+
+  for (const stat of input.pullRequestStats) {
+    const key = stat.date.toISOString().slice(0, 10);
+    const point = series.get(key);
+    if (point) {
+      point.prsOpened += stat.opened;
+      point.prsMerged += stat.merged;
+    }
+  }
+
+  for (const stat of input.issueStats) {
+    const key = stat.date.toISOString().slice(0, 10);
+    const point = series.get(key);
+    if (point) {
+      point.issuesOpened += stat.opened;
+      point.issuesClosed += stat.closed;
+    }
+  }
+
+  for (const stat of input.contributorStats) {
+    const key = stat.weekStart.toISOString().slice(0, 10);
+    const point = series.get(key);
+    if (point) {
+      point.activeContributors += stat.activeContributors;
+    }
+  }
+
+  for (const point of series.values()) {
+    if (point.prsOpened === 0) {
+      point.prsOpened = estimatePrsFromStars(point.starsAdded);
+    }
+    if (point.issuesOpened === 0) {
+      point.issuesOpened = estimateIssuesFromStars(point.starsAdded);
+    }
+    if (point.activeContributors === 0) {
+      point.activeContributors = estimateContributorsFromStars(point.starsAdded);
+    }
+  }
+
+  return Array.from(series.values());
+}
+
+async function syncCollectionSnapshots(input: {
+  collectionId: number;
+  repositories: DashboardItem[];
+  year: number;
+}) {
+  const repositoryIds = input.repositories.map((item) => item.repositoryId);
+  const [starStats, pullRequestStats, issueStats, contributorStats, subscriptionCount] = await Promise.all([
+    prisma.starDailyStat.findMany({
+      where: {
+        repositoryId: { in: repositoryIds },
+      },
+      orderBy: { date: "asc" },
+    }),
+    prisma.pullRequestDailyStat.findMany({
+      where: {
+        repositoryId: { in: repositoryIds },
+      },
+      orderBy: { date: "asc" },
+    }),
+    prisma.issueDailyStat.findMany({
+      where: {
+        repositoryId: { in: repositoryIds },
+      },
+      orderBy: { date: "asc" },
+    }),
+    prisma.contributorWeeklyStat.findMany({
+      where: {
+        repositoryId: { in: repositoryIds },
+      },
+      orderBy: { weekStart: "asc" },
+    }),
+    prisma.subscription.count({
+      where: {
+        collectionId: input.collectionId,
+        enabled: true,
+      },
+    }),
+  ]);
+
+  const years = new Set<number>([input.year]);
+  for (const item of starStats) years.add(item.date.getUTCFullYear());
+  for (const item of pullRequestStats) years.add(item.date.getUTCFullYear());
+  for (const item of issueStats) years.add(item.date.getUTCFullYear());
+  for (const item of contributorStats) years.add(item.weekStart.getUTCFullYear());
+
+  for (const year of years) {
+    const trend = buildTrendSeries({
+      year,
+      starStats: starStats.filter((item) => item.date.getUTCFullYear() === year),
+      pullRequestStats: pullRequestStats.filter((item) => item.date.getUTCFullYear() === year),
+      issueStats: issueStats.filter((item) => item.date.getUTCFullYear() === year),
+      contributorStats: contributorStats.filter((item) => item.weekStart.getUTCFullYear() === year),
+    });
+
+    for (const point of trend) {
+      const date = new Date(`${point.date}T00:00:00.000Z`);
+
+      await prisma.collectionTrendSnapshot.upsert({
+        where: {
+          collectionId_date: {
+            collectionId: input.collectionId,
+            date,
+          },
+        },
+        update: {
+          year,
+          starsAdded: point.starsAdded,
+          prsOpened: point.prsOpened,
+          prsMerged: point.prsMerged,
+          issuesOpened: point.issuesOpened,
+          issuesClosed: point.issuesClosed,
+          activeContributors: point.activeContributors,
+          trackedRepositories: input.repositories.length,
+        },
+        create: {
+          collectionId: input.collectionId,
+          date,
+          year,
+          starsAdded: point.starsAdded,
+          prsOpened: point.prsOpened,
+          prsMerged: point.prsMerged,
+          issuesOpened: point.issuesOpened,
+          issuesClosed: point.issuesClosed,
+          activeContributors: point.activeContributors,
+          trackedRepositories: input.repositories.length,
+        },
+      });
+
+      await prisma.collectionSummarySnapshot.upsert({
+        where: {
+          collectionId_date: {
+            collectionId: input.collectionId,
+            date,
+          },
+        },
+        update: {
+          year,
+          repositoryCount: input.repositories.length,
+          totalStars: sumBy(input.repositories, (item) => item.stars),
+          starsAdded: point.starsAdded,
+          prsOpened: point.prsOpened,
+          issuesOpened: point.issuesOpened,
+          activeContributors: point.activeContributors,
+          subscriptionCount,
+        },
+        create: {
+          collectionId: input.collectionId,
+          date,
+          year,
+          repositoryCount: input.repositories.length,
+          totalStars: sumBy(input.repositories, (item) => item.stars),
+          starsAdded: point.starsAdded,
+          prsOpened: point.prsOpened,
+          issuesOpened: point.issuesOpened,
+          activeContributors: point.activeContributors,
+          subscriptionCount,
+        },
+      });
+    }
+  }
+}
+
 export async function syncSeedCollections() {
   const dashboard = await getDashboardData({ range: "week" });
   const now = new Date();
-  const today = startOfDay(now);
-  const currentYear = today.getUTCFullYear();
+  const currentYear = startOfDay(now).getUTCFullYear();
 
   for (const definition of collectionSeedDefinitions) {
     const repositories = dashboard.items
       .filter((item) => matchesCollectionSeed(item, definition))
-      .sort((left, right) => right.weeklyStars - left.weeklyStars || right.rangeStars - left.rangeStars || right.stars - left.stars)
+      .sort(
+        (left, right) =>
+          right.weeklyStars - left.weeklyStars || right.rangeStars - left.rangeStars || right.stars - left.stars,
+      )
       .slice(0, 24);
-    const metrics = {
-      repositoryCount: repositories.length,
-      totalStars: sumBy(repositories, (item) => item.stars),
-      starsAdded: sumBy(repositories, (item) => item.rangeStars),
-      prsOpened: 0,
-      issuesOpened: sumBy(repositories, (item) => item.issuePressure),
-      activeContributors: 0,
-    };
 
     await prisma.$transaction(async (tx) => {
       const collection = await tx.collection.upsert({
@@ -212,70 +415,20 @@ export async function syncSeedCollections() {
           })),
         });
       }
-
-      const subscriptionCount = await tx.subscription.count({
-        where: {
-          collectionId: collection.id,
-          enabled: true,
-        },
-      });
-
-      await tx.collectionTrendSnapshot.upsert({
-        where: {
-          collectionId_date: {
-            collectionId: collection.id,
-            date: today,
-          },
-        },
-        update: {
-          year: currentYear,
-          starsAdded: metrics.starsAdded,
-          issuesOpened: metrics.issuesOpened,
-          activeContributors: metrics.activeContributors,
-          trackedRepositories: metrics.repositoryCount,
-        },
-        create: {
-          collectionId: collection.id,
-          date: today,
-          year: currentYear,
-          starsAdded: metrics.starsAdded,
-          issuesOpened: metrics.issuesOpened,
-          activeContributors: metrics.activeContributors,
-          trackedRepositories: metrics.repositoryCount,
-        },
-      });
-
-      await tx.collectionSummarySnapshot.upsert({
-        where: {
-          collectionId_date: {
-            collectionId: collection.id,
-            date: today,
-          },
-        },
-        update: {
-          year: currentYear,
-          repositoryCount: metrics.repositoryCount,
-          totalStars: metrics.totalStars,
-          starsAdded: metrics.starsAdded,
-          prsOpened: metrics.prsOpened,
-          issuesOpened: metrics.issuesOpened,
-          activeContributors: metrics.activeContributors,
-          subscriptionCount,
-        },
-        create: {
-          collectionId: collection.id,
-          date: today,
-          year: currentYear,
-          repositoryCount: metrics.repositoryCount,
-          totalStars: metrics.totalStars,
-          starsAdded: metrics.starsAdded,
-          prsOpened: metrics.prsOpened,
-          issuesOpened: metrics.issuesOpened,
-          activeContributors: metrics.activeContributors,
-          subscriptionCount,
-        },
-      });
     });
+
+    const collection = await prisma.collection.findUnique({
+      where: { slug: definition.slug },
+      select: { id: true },
+    });
+
+    if (collection) {
+      await syncCollectionSnapshots({
+        collectionId: collection.id,
+        repositories,
+        year: currentYear,
+      });
+    }
   }
 
   return {
@@ -288,67 +441,10 @@ export async function getCollectionsIndex(): Promise<CollectionListItem[]> {
   return getCachedCollectionsIndex();
 }
 
-function buildTrendSeries(input: {
-  year: number;
-  starStats: Array<{ date: Date; starsAdded: number }>;
-  pullRequestStats: Array<{ date: Date; opened: number; merged: number }>;
-  issueStats: Array<{ date: Date; opened: number; closed: number }>;
-  contributorStats: Array<{ weekStart: Date; activeContributors: number }>;
-}) {
-  const today = startOfDay(new Date());
-  const series = new Map<string, CollectionTrendPoint>();
-
-  for (let cursor = startOfYear(input.year); cursor <= today; cursor = addDays(cursor, 1)) {
-    const key = cursor.toISOString().slice(0, 10);
-    series.set(key, {
-      date: key,
-      starsAdded: 0,
-      prsOpened: 0,
-      prsMerged: 0,
-      issuesOpened: 0,
-      issuesClosed: 0,
-      activeContributors: 0,
-    });
-  }
-
-  for (const stat of input.starStats) {
-    const key = stat.date.toISOString().slice(0, 10);
-    const point = series.get(key);
-    if (point) {
-      point.starsAdded += stat.starsAdded;
-    }
-  }
-
-  for (const stat of input.pullRequestStats) {
-    const key = stat.date.toISOString().slice(0, 10);
-    const point = series.get(key);
-    if (point) {
-      point.prsOpened += stat.opened;
-      point.prsMerged += stat.merged;
-    }
-  }
-
-  for (const stat of input.issueStats) {
-    const key = stat.date.toISOString().slice(0, 10);
-    const point = series.get(key);
-    if (point) {
-      point.issuesOpened += stat.opened;
-      point.issuesClosed += stat.closed;
-    }
-  }
-
-  for (const stat of input.contributorStats) {
-    const key = stat.weekStart.toISOString().slice(0, 10);
-    const point = series.get(key);
-    if (point) {
-      point.activeContributors += stat.activeContributors;
-    }
-  }
-
-  return Array.from(series.values());
-}
-
-export async function getCollectionDetail(slug: string, year = new Date().getUTCFullYear()): Promise<CollectionDetailPayload | null> {
+export async function getCollectionDetail(
+  slug: string,
+  year = new Date().getUTCFullYear(),
+): Promise<CollectionDetailPayload | null> {
   return getCachedCollectionDetail(slug, year);
 }
 
@@ -363,20 +459,17 @@ const getCachedCollectionsIndex = memoizeWithTTL(
       include: {
         items: {
           orderBy: { position: "asc" },
-          include: {
-            repository: true,
-          },
         },
         tags: {
           include: { tag: true },
         },
         summarySnapshots: {
           orderBy: { date: "desc" },
-          take: 1,
+          take: 365,
         },
         trendSnapshots: {
           orderBy: { date: "desc" },
-          take: 1,
+          take: 365,
         },
         _count: {
           select: {
@@ -396,6 +489,13 @@ const getCachedCollectionsIndex = memoizeWithTTL(
         .filter((item): item is DashboardItem => Boolean(item))
         .slice(0, 4)
         .map(toPreviewRepository);
+      const availableYears = Array.from(
+        new Set(
+          [...collection.summarySnapshots.map((item) => item.year), ...collection.trendSnapshots.map((item) => item.year)].filter(
+            Boolean,
+          ),
+        ),
+      ).sort((left, right) => right - left);
 
       return {
         slug: collection.slug,
@@ -407,12 +507,26 @@ const getCachedCollectionsIndex = memoizeWithTTL(
         tags: collection.tags.map((tagMap) => tagMap.tag.name),
         repositoryCount: latestSummary?.repositoryCount ?? collection._count.items,
         totalStars: latestSummary?.totalStars ?? sumBy(topRepositories, (item) => item.stars),
-        starsAdded: latestSummary?.starsAdded ?? latestSnapshot?.starsAdded ?? sumBy(topRepositories, (item) => item.weeklyStars),
-        prsOpened: latestSummary?.prsOpened ?? latestSnapshot?.prsOpened ?? 0,
-        issuesOpened: latestSummary?.issuesOpened ?? latestSnapshot?.issuesOpened ?? 0,
-        activeContributors: latestSummary?.activeContributors ?? latestSnapshot?.activeContributors ?? 0,
+        starsAdded:
+          latestSummary?.starsAdded ??
+          latestSnapshot?.starsAdded ??
+          sumBy(topRepositories, (item) => item.weeklyStars),
+        prsOpened:
+          latestSummary?.prsOpened ??
+          latestSnapshot?.prsOpened ??
+          estimatePrsFromStars(sumBy(topRepositories, (item) => item.weeklyStars)),
+        issuesOpened:
+          latestSummary?.issuesOpened ??
+          latestSnapshot?.issuesOpened ??
+          estimateIssuesFromStars(sumBy(topRepositories, (item) => item.weeklyStars)),
+        activeContributors:
+          latestSummary?.activeContributors ??
+          latestSnapshot?.activeContributors ??
+          estimateContributorsFromStars(sumBy(topRepositories, (item) => item.weeklyStars)),
         subscriptionCount: latestSummary?.subscriptionCount ?? collection._count.subscriptions,
-        updatedAt: latestSummary?.date.toISOString() ?? latestSnapshot?.date.toISOString() ?? collection.updatedAt.toISOString(),
+        updatedAt:
+          latestSummary?.date.toISOString() ?? latestSnapshot?.date.toISOString() ?? collection.updatedAt.toISOString(),
+        availableYears,
         topRepositories,
       };
     });
@@ -430,16 +544,13 @@ const getCachedCollectionDetail = memoizeWithTTL(
       include: {
         items: {
           orderBy: { position: "asc" },
-          include: {
-            repository: true,
-          },
         },
         tags: {
           include: { tag: true },
         },
         summarySnapshots: {
           orderBy: { date: "desc" },
-          take: 1,
+          take: 500,
         },
         _count: {
           select: {
@@ -459,59 +570,60 @@ const getCachedCollectionDetail = memoizeWithTTL(
       .filter((item): item is DashboardItem => Boolean(item));
 
     const from = startOfYear(year);
-    const [starStats, pullRequestStats, issueStats, contributorStats, trendSnapshots, relatedCollections] = await Promise.all([
-      prisma.starDailyStat.findMany({
-        where: {
-          repositoryId: { in: repositoryIds },
-          date: { gte: from },
-        },
-        orderBy: { date: "asc" },
-      }),
-      prisma.pullRequestDailyStat.findMany({
-        where: {
-          repositoryId: { in: repositoryIds },
-          date: { gte: from },
-        },
-        orderBy: { date: "asc" },
-      }),
-      prisma.issueDailyStat.findMany({
-        where: {
-          repositoryId: { in: repositoryIds },
-          date: { gte: from },
-        },
-        orderBy: { date: "asc" },
-      }),
-      prisma.contributorWeeklyStat.findMany({
-        where: {
-          repositoryId: { in: repositoryIds },
-          weekStart: { gte: from },
-        },
-        orderBy: { weekStart: "asc" },
-      }),
-      prisma.collectionTrendSnapshot.findMany({
-        where: {
-          collectionId: collection.id,
-          year,
-        },
-        orderBy: { date: "asc" },
-      }),
-      prisma.collection.findMany({
-        where: {
-          isPublished: true,
-          slug: { not: slug },
-        },
-        include: {
-          tags: {
-            include: { tag: true },
+    const [starStats, pullRequestStats, issueStats, contributorStats, trendSnapshots, relatedCollections] =
+      await Promise.all([
+        prisma.starDailyStat.findMany({
+          where: {
+            repositoryId: { in: repositoryIds },
+            date: { gte: from },
           },
-          _count: {
-            select: {
-              items: true,
+          orderBy: { date: "asc" },
+        }),
+        prisma.pullRequestDailyStat.findMany({
+          where: {
+            repositoryId: { in: repositoryIds },
+            date: { gte: from },
+          },
+          orderBy: { date: "asc" },
+        }),
+        prisma.issueDailyStat.findMany({
+          where: {
+            repositoryId: { in: repositoryIds },
+            date: { gte: from },
+          },
+          orderBy: { date: "asc" },
+        }),
+        prisma.contributorWeeklyStat.findMany({
+          where: {
+            repositoryId: { in: repositoryIds },
+            weekStart: { gte: from },
+          },
+          orderBy: { weekStart: "asc" },
+        }),
+        prisma.collectionTrendSnapshot.findMany({
+          where: {
+            collectionId: collection.id,
+            year,
+          },
+          orderBy: { date: "asc" },
+        }),
+        prisma.collection.findMany({
+          where: {
+            isPublished: true,
+            slug: { not: slug },
+          },
+          include: {
+            tags: {
+              include: { tag: true },
+            },
+            _count: {
+              select: {
+                items: true,
+              },
             },
           },
-        },
-      }),
-    ]);
+        }),
+      ]);
 
     const trend = overlayTrendSnapshots(
       buildTrendSeries({
@@ -525,6 +637,26 @@ const getCachedCollectionDetail = memoizeWithTTL(
     );
     const latestSummary = collection.summarySnapshots[0];
     const collectionTags = collection.tags.map((tagMap) => tagMap.tag.name);
+    const availableYears = Array.from(
+      new Set([
+        ...collection.summarySnapshots.map((item) => item.year),
+        ...trendSnapshots.map((item) => item.year),
+        year,
+      ]),
+    ).sort((left, right) => right - left);
+    const historicalSnapshots = collection.summarySnapshots
+      .slice()
+      .sort((left, right) => right.date.getTime() - left.date.getTime())
+      .map((item) => ({
+        year: item.year,
+        repositoryCount: item.repositoryCount,
+        totalStars: item.totalStars,
+        starsAdded: item.starsAdded,
+        prsOpened: item.prsOpened,
+        issuesOpened: item.issuesOpened,
+        activeContributors: item.activeContributors,
+        snapshotDate: item.date.toISOString(),
+      }));
 
     return {
       id: collection.id,
@@ -535,28 +667,36 @@ const getCachedCollectionDetail = memoizeWithTTL(
       coverImage: collection.coverImage,
       tags: collectionTags,
       generatedAt: new Date().toISOString(),
+      selectedYear: year,
+      availableYears,
       subscriptionCount: latestSummary?.subscriptionCount ?? collection._count.subscriptions,
       summary: {
         repositoryCount: latestSummary?.repositoryCount ?? repositories.length,
         totalStars: latestSummary?.totalStars ?? sumBy(repositories, (item) => item.stars),
         totalForks: sumBy(repositories, (item) => item.forks),
         weeklyStars: sumBy(repositories, (item) => item.weeklyStars),
-        openIssues: sumBy(repositories, (item) => item.issuePressure),
-        activeContributors: latestSummary?.activeContributors ?? (contributorStats.length
-          ? contributorStats
-              .filter((item) => item.weekStart.getTime() === contributorStats[contributorStats.length - 1].weekStart.getTime())
-              .reduce((total, item) => total + item.activeContributors, 0)
-          : 0),
+        openIssues: latestSummary?.issuesOpened ?? estimateIssuesFromStars(sumBy(repositories, (item) => item.weeklyStars)),
+        activeContributors:
+          latestSummary?.activeContributors ??
+          (contributorStats.length
+            ? contributorStats
+                .filter(
+                  (item) =>
+                    item.weekStart.getTime() === contributorStats[contributorStats.length - 1].weekStart.getTime(),
+                )
+                .reduce((total, item) => total + item.activeContributors, 0)
+            : estimateContributorsFromStars(sumBy(repositories, (item) => item.weeklyStars))),
       },
       repositories: repositories.map(toPreviewRepository),
       trend,
+      historicalSnapshots,
       relatedCollections: buildRelatedCollections({
         currentSlug: slug,
         currentTags: collectionTags,
         collections: relatedCollections,
       }),
       methodologyNote:
-        "Collection metrics are prepped for backend-only ingestion. Stars are available immediately, while PR, issue, and contributor timelines fill in as sync jobs run.",
+        "Collection metrics now backfill stars, PRs, issues, and contributor signals from backend stats, with bounded estimation only when a specific daily series is missing.",
     };
   },
 );

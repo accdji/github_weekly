@@ -9,9 +9,10 @@ type Context = {
   }>;
 };
 
-export async function GET(_: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   const params = await context.params;
-  const payload = await getCollectionDetail(params.slug);
+  const yearValue = new URL(request.url).searchParams.get("year");
+  const payload = await getCollectionDetail(params.slug, yearValue ? Number(yearValue) : undefined);
 
   if (!payload) {
     return new Response("Not found", { status: 404 });

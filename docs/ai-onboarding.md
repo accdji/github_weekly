@@ -9,7 +9,7 @@ This document mirrors the `/{locale}/ai` page. The route is still `ai` for compa
 - CLI access for local operators
 - Primary user roles and their use cases
 - Data freshness, update rhythm, and operational expectations
-- Subscription entry points and the current delivery boundary
+- Subscription entry points, delivery jobs, and management actions
 - Troubleshooting for the most common data and workflow issues
 - Export formats supported by the dashboard and scripts
 - Core HTTP endpoints and files to read first
@@ -52,6 +52,8 @@ Key commands:
   Rebuild database-backed collections and summary cards.
 - `npm run pipeline:run`
   Run the backend ingestion pipeline end to end.
+- `npm run worker:subscriptions`
+  Generate and process subscription digest deliveries.
 - `npm run ai:context`
   Print machine-readable product-manual JSON.
 - `npm run ai:report`
@@ -72,14 +74,18 @@ Key commands:
 
 ## Subscriptions
 
-The current product already supports persisted subscription records:
+The current product already supports end-to-end subscription handling:
 
 - Collection follow from the UI
   Open a collection detail page and submit the subscribe form.
 - Subscription center review
-  Use `/{locale}/subscriptions` to inspect stored follows and keyword alerts.
+  Use `/{locale}/subscriptions` to inspect stored follows, repository subscriptions, delivery logs, and management actions.
 - Programmatic create
-  Send `POST /api/subscriptions` with `collectionId` or `keywords`.
+  Send `POST /api/subscriptions` with `collectionId`, `repositoryId`, or `keywords`.
+- Verification and management
+  Use the verification link from `/api/subscriptions/verify` and manage frequency, pause, or unsubscribe from the subscription center.
+- Worker-driven delivery
+  Run `npm run worker:subscriptions` or `POST /api/workers/subscriptions` to create and process digest deliveries.
 
 Example payload:
 
@@ -94,10 +100,11 @@ Example payload:
 }
 ```
 
-Current boundary:
+Current delivery surface:
 
-- Subscription intent is persisted today
-- Outbound digest delivery jobs are a later backend milestone
+- Subscription intent is persisted in the database
+- Delivery jobs and delivery logs are stored in the outbox
+- Email and webhook-style channels can be processed by the subscription worker
 
 ## Troubleshooting
 
@@ -108,7 +115,7 @@ Current boundary:
 - Collections look stale after ingestion
   Run `npm run collections:sync` after repository ingestion.
 - A subscription exists but nothing was delivered
-  The current version persists follows first. Delivery jobs and outbound channels are still being built.
+  Run `npm run worker:subscriptions` or `POST /api/workers/subscriptions`, then inspect the delivery log in `/{locale}/subscriptions`.
 - GitNexus reports a stale or locked graph
   Run `npm run gitnexus:analyze`. If the local graph lock persists, stop the conflicting process and rerun it.
 
@@ -136,9 +143,8 @@ Current boundary:
 
 ## Current Product Boundaries
 
-- Subscription intent is persisted today, but outbound digest delivery is still a later backend milestone.
-- PR, issue, and contributor collection trends are scaffolded in the schema but not fully populated yet.
 - Weekly stars can stay partial until enough comparable snapshots accumulate.
+- External delivery quality still depends on the subscriber's configured email or webhook target.
 - The route remains `/{locale}/ai` for compatibility even though the page is now the product manual.
 
 ## HTTP Entry Points
@@ -153,8 +159,16 @@ Current boundary:
   Collections gallery payload.
 - `GET /api/collections/{slug}`
   Collection detail payload.
-- `POST /api/subscriptions`
-  Create a collection or keyword subscription record.
+- `GET|POST|PATCH /api/subscriptions`
+  Create, inspect, or manage collection, repository, and keyword subscriptions.
+- `GET /api/subscriptions/verify`
+  Verify a subscriber channel token.
+- `GET|POST /api/collections/submissions`
+  Create or inspect public collection submissions.
+- `PATCH /api/collections/submissions/{id}`
+  Approve, reject, or assign editors in the review workspace.
+- `POST /api/workers/subscriptions`
+  Trigger the subscription digest worker.
 
 ## Read First
 
@@ -165,6 +179,11 @@ Current boundary:
 - `lib/ai-toolkit.ts`
 - `components/dashboard-app.tsx`
 - `components/collection-subscribe-form.tsx`
+- `components/repository-subscribe-form.tsx`
 - `app/[locale]/ai/page.tsx`
 - `app/[locale]/subscriptions/page.tsx`
+- `app/[locale]/collections/submit/page.tsx`
+- `app/[locale]/collections/review/page.tsx`
+- `lib/collection-submissions.ts`
+- `lib/workers.ts`
 - `prisma/schema.prisma`

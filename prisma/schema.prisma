@@ -37,6 +37,20 @@ model Repository {
   contributorStats  ContributorWeeklyStat[]
 }
 
+model Subscriber {
+  id                Int            @id @default(autoincrement())
+  email             String         @unique
+  locale            String         @default("zh-CN")
+  verificationToken String         @unique
+  manageToken       String         @unique
+  verifiedAt        DateTime?
+  channelsJson      String         @default("[]")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  subscriptions     Subscription[]
+  deliveryJobs      DeliveryJob[]
+}
+
 model Snapshot {
   id          Int        @id @default(autoincrement())
   repositoryId Int
@@ -171,25 +185,68 @@ model RawGitHubRepository {
 
 model Subscription {
   id               Int         @id @default(autoincrement())
+  subscriberId     Int?
   email            String?
   locale           String      @default("zh-CN")
   channel          String      @default("in_app")
+  channelTarget    String?
   subscriptionType String      @default("keyword")
   digestFrequency  String      @default("weekly")
   enabled          Boolean     @default(true)
+  verificationStatus String    @default("not_required")
+  notifyOnNewRepos Boolean     @default(true)
   keywordsJson     String      @default("[]")
   repositoryId     Int?
   collectionId     Int?
   lastNotifiedAt   DateTime?
+  lastDigestAt     DateTime?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+  subscriber       Subscriber? @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
   repository       Repository? @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   collection       Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  deliveryJobs     DeliveryJob[]
 
   @@index([enabled, updatedAt])
+  @@index([subscriberId])
   @@index([repositoryId])
   @@index([collectionId])
   @@index([subscriptionType, enabled, updatedAt])
+}
+
+model DeliveryJob {
+  id             Int          @id @default(autoincrement())
+  subscriptionId Int
+  subscriberId   Int?
+  channel        String
+  status         String       @default("pending")
+  subject        String
+  body           String
+  payloadJson    String       @default("{}")
+  windowStart    DateTime?
+  windowEnd      DateTime?
+  scheduledFor   DateTime     @default(now())
+  sentAt         DateTime?
+  createdAt      DateTime     @default(now())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriber     Subscriber?  @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
+  logs           DeliveryLog[]
+
+  @@index([status, scheduledFor])
+  @@index([subscriptionId, createdAt])
+  @@index([subscriberId, createdAt])
+}
+
+model DeliveryLog {
+  id            Int         @id @default(autoincrement())
+  deliveryJobId Int
+  level         String      @default("info")
+  message       String
+  payloadJson   String      @default("{}")
+  createdAt     DateTime    @default(now())
+  deliveryJob   DeliveryJob @relation(fields: [deliveryJobId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryJobId, createdAt])
 }
 
 model Collection {
@@ -209,8 +266,47 @@ model Collection {
   trendSnapshots  CollectionTrendSnapshot[]
   summarySnapshots CollectionSummarySnapshot[]
   subscriptions   Subscription[]
+  editors         CollectionEditor[]
+  submissions     CollectionSubmission[]
 
   @@index([isPublished, featured, sortOrder])
+}
+
+model CollectionSubmission {
+  id                  Int         @id @default(autoincrement())
+  slugCandidate       String?
+  name                String
+  description         String
+  coverImage          String?
+  tagsJson            String      @default("[]")
+  repositoryNamesJson String      @default("[]")
+  submitterName       String?
+  submitterEmail      String
+  status              String      @default("pending")
+  moderationNotes     String?
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  publishedCollectionId Int?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  publishedCollection Collection? @relation(fields: [publishedCollectionId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([publishedCollectionId])
+}
+
+model CollectionEditor {
+  id           Int        @id @default(autoincrement())
+  collectionId Int
+  name         String
+  email        String?
+  role         String     @default("editor")
+  status       String     @default("active")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId, status])
 }
 
 model CollectionItem {
@@ -323,4 +419,18 @@ model ContributorWeeklyStat {
 
   @@unique([repositoryId, weekStart])
   @@index([weekStart])
+}
+
+model WorkerRun {
+  id          Int      @id @default(autoincrement())
+  workerType  String
+  status      String
+  triggeredBy String   @default("system")
+  statsJson   String   @default("{}")
+  message     String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  @@index([workerType, startedAt])
+  @@index([status, startedAt])
 }

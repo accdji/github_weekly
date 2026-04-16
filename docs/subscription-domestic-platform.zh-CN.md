@@ -154,3 +154,10 @@
 2. 先跑通邮箱和站内 digest
 3. 再接企业微信或飞书
 4. 最后再做微信类 C 端渠道
+
+## 当前已落地的渠道能力
+
+- 站内 outbox 已可直接承接 digest
+- Webhook、企业微信、飞书 Webhook 已可直接投递
+- 邮件渠道在配置 `RESEND_API_KEY` 与 `EMAIL_FROM` 后会走真实邮件发送
+- 未配置邮件服务时，邮件任务仍会保留在 outbox 与 delivery logs 中，便于排查和补配

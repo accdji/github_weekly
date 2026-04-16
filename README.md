@@ -6,7 +6,7 @@ Open Source Trend Intelligence Desk is a bilingual GitHub trend product for disc
 
 ## Overview
 
-- Product routes: dashboard, collections, archive, jobs, subscriptions, and product manual
+- Product routes: dashboard, collections, collection submission, collection review, archive, jobs, subscriptions, and product manual
 - Data flow: backend jobs collect and aggregate data, frontend pages only read from the database
 - Local database: SQLite
 - Production database: PostgreSQL
@@ -43,6 +43,7 @@ Open Source Trend Intelligence Desk is a bilingual GitHub trend product for disc
 - `npm run build:weekly`: generate the latest weekly ranking snapshot
 - `npm run collections:sync`: seed and refresh curated collections
 - `npm run pipeline:run`: execute the backend ingestion pipeline
+- `npm run worker:subscriptions`: create and process subscription digest deliveries
 - `npm run ai:context`: print the product-manual JSON context
 - `npm run ai:report`: print the latest Markdown weekly report
 - `npm run ai:repo -- owner/name`: print one repository dossier
@@ -84,6 +85,8 @@ Optional production variable:
 
 - Dashboard: `/{locale}`
 - Collections: `/{locale}/collections`
+- Collection submit: `/{locale}/collections/submit`
+- Collection review: `/{locale}/collections/review`
 - Collection detail: `/{locale}/collections/{slug}`
 - Archive: `/{locale}/archive`
 - Jobs: `/{locale}/jobs`
@@ -95,9 +98,13 @@ Optional production variable:
 - `GET /api/dashboard`
 - `GET /api/collections`
 - `GET /api/collections/{slug}`
+- `GET|POST /api/collections/submissions`
+- `PATCH /api/collections/submissions/{id}`
 - `GET /api/archive`
 - `GET /api/jobs`
-- `POST /api/subscriptions`
+- `GET|POST|PATCH /api/subscriptions`
+- `GET /api/subscriptions/verify`
+- `POST /api/workers/subscriptions`
 - `GET /api/ai/context`
 
 ## Docs
@@ -115,7 +122,8 @@ Optional production variable:
 ## Notes
 
 - Browser-triggered collection has been removed from the UI
-- Collections are first-class database entities
+- Collections are first-class database entities with public submission and review flows
+- Subscription delivery now includes persisted subscribers, verification links, delivery jobs/logs, repository follows, and worker-driven digest execution
 - Some runtime repository detail calls can still hit GitHub APIs, so `GH_TOKEN` improves stability
 
 ## GitNexus

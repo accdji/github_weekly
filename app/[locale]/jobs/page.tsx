@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site-header";
 import { listRecentIngestionJobs } from "@/lib/ingestion/jobs";
 import { listRecentJobRuns } from "@/lib/jobs";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
+import { listRecentWorkerRuns } from "@/lib/workers";
 
 export const revalidate = 30;
 
@@ -20,53 +21,59 @@ export default async function JobsPage({ params }: PageProps) {
 
   const currentLocale = locale as Locale;
   const dictionary = getDictionary(currentLocale);
-  const [jobs, ingestionJobs] = await Promise.all([listRecentJobRuns(), listRecentIngestionJobs()]);
-  const formatStatus = (status: string) => {
-    if (currentLocale !== "zh-CN") {
-      return status;
-    }
-
-    const normalized = status.toLowerCase();
-
-    if (normalized === "success") {
-      return "成功";
-    }
-
-    if (normalized === "failed") {
-      return "失败";
-    }
-
-    if (normalized === "running") {
-      return "进行中";
-    }
-
-    return status;
-  };
-  const copy = {
-    title: currentLocale === "zh-CN" ? "后端任务中心" : "Backend job center",
-    intro:
-      currentLocale === "zh-CN"
-        ? "这里展示由后端调度器执行的采集、排行构建和集合聚合作业。页面本身不再触发抓取。"
-        : "Track ingestion, ranking, and collection aggregation jobs executed by the backend scheduler. This page no longer triggers collection from the browser.",
-    pipeline: currentLocale === "zh-CN" ? "流程作业" : "Pipeline runs",
-    ingestion: currentLocale === "zh-CN" ? "采集作业" : "Ingestion runs",
-  };
+  const [jobs, ingestionJobs, workerRuns] = await Promise.all([
+    listRecentJobRuns(),
+    listRecentIngestionJobs(),
+    listRecentWorkerRuns(),
+  ]);
 
   return (
     <main className="subpage-shell">
       <SiteHeader locale={currentLocale} />
       <section className="subpage-hero">
         <p className="eyebrow">{dictionary.sections.jobs}</p>
-        <h1>{copy.title}</h1>
-        <p>{copy.intro}</p>
+        <h1>{currentLocale === "zh-CN" ? "后端任务中心" : "Backend job center"}</h1>
+        <p>
+          {currentLocale === "zh-CN"
+            ? "现在除了采集和排行任务，这里也会显示订阅 digest worker 的执行记录。"
+            : "In addition to ingestion and ranking jobs, this page now surfaces the dedicated subscription digest worker."}
+        </p>
       </section>
 
       <section className="content-stack">
         <article className="content-card">
           <div className="deck__header">
             <div>
-              <p className="eyebrow">{copy.pipeline}</p>
-              <h2>{copy.pipeline}</h2>
+              <p className="eyebrow">{currentLocale === "zh-CN" ? "Worker" : "Worker"}</p>
+              <h2>{currentLocale === "zh-CN" ? "订阅 digest worker" : "Subscription digest worker"}</h2>
+            </div>
+          </div>
+          <div className="job-table">
+            {workerRuns.length ? (
+              workerRuns.map((job) => (
+                <div key={`worker-${job.id}`} className="job-row">
+                  <div className="job-row__top">
+                    <strong>{job.workerType}</strong>
+                    <JobStatusBadge status={job.status} />
+                  </div>
+                  <span>{job.triggeredBy}</span>
+                  <span>{job.startedAt}</span>
+                  <span>{job.finishedAt ?? "--"}</span>
+                  <span>{job.message ?? "--"}</span>
+                  <pre className="job-row__stats">{JSON.stringify(job.stats, null, 2)}</pre>
+                </div>
+              ))
+            ) : (
+              <p>{dictionary.misc.noData}</p>
+            )}
+          </div>
+        </article>
+
+        <article className="content-card">
+          <div className="deck__header">
+            <div>
+              <p className="eyebrow">{currentLocale === "zh-CN" ? "Pipeline" : "Pipeline"}</p>
+              <h2>{currentLocale === "zh-CN" ? "流程作业" : "Pipeline runs"}</h2>
             </div>
           </div>
           <div className="job-table">
@@ -75,7 +82,7 @@ export default async function JobsPage({ params }: PageProps) {
                 <div key={job.id} className="job-row">
                   <div className="job-row__top">
                     <strong>{job.jobType}</strong>
-                    <JobStatusBadge status={formatStatus(job.status)} />
+                    <JobStatusBadge status={job.status} />
                   </div>
                   <span>{job.triggeredBy}</span>
                   <span>{job.startedAt.toISOString()}</span>
@@ -93,8 +100,8 @@ export default async function JobsPage({ params }: PageProps) {
         <article className="content-card">
           <div className="deck__header">
             <div>
-              <p className="eyebrow">{copy.ingestion}</p>
-              <h2>{copy.ingestion}</h2>
+              <p className="eyebrow">{currentLocale === "zh-CN" ? "采集" : "Ingestion"}</p>
+              <h2>{currentLocale === "zh-CN" ? "采集作业" : "Ingestion runs"}</h2>
             </div>
           </div>
           <div className="job-table">
@@ -103,7 +110,7 @@ export default async function JobsPage({ params }: PageProps) {
                 <div key={`ingestion-${job.id}`} className="job-row">
                   <div className="job-row__top">
                     <strong>{job.jobType}</strong>
-                    <JobStatusBadge status={formatStatus(job.status)} />
+                    <JobStatusBadge status={job.status} />
                   </div>
                   <span>{job.triggeredBy}</span>
                   <span>{job.startedAt.toISOString()}</span>

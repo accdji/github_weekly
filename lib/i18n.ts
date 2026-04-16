@@ -315,7 +315,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     },
     subscriptions: {
-      description: "Persist keyword subscriptions on the backend so alerts, reports, and future email delivery all share the same source of truth.",
+      description: "Persist keyword subscriptions on the backend so alerts, reports, delivery logs, and email or webhook digests all share the same source of truth.",
       keywords: "Keywords",
       watchedProjects: "Watched projects",
       notifications: "Browser notifications",
@@ -380,7 +380,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       },
       subscriptions: {
         title: "Subscription center",
-        intro: "Review keyword alerts and collection follows that are now persisted on the backend.",
+        intro: "Review keyword alerts, collection follows, repository follows, delivery logs, and digest worker output persisted on the backend.",
       },
       ai: {
         title: "Product Manual",
@@ -514,7 +514,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       weekdays: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
     },
     subscriptions: {
-      description: "将关键词订阅持久化到后端，后续站内提醒、摘要推送和邮件投递都可以复用这份配置。",
+      description: "将关键词订阅持久化到后端，站内提醒、摘要推送、投递日志以及邮件或 webhook digest 都会复用这份配置。",
       keywords: "关键词",
       watchedProjects: "关注项目",
       notifications: "浏览器通知",
@@ -579,7 +579,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       },
       subscriptions: {
         title: "订阅中心",
-        intro: "统一查看关键词提醒与集合订阅，后续周报和月报也会从这里继续扩展。",
+        intro: "统一查看关键词提醒、集合订阅、仓库订阅、投递日志和 digest worker 执行结果。",
       },
       ai: {
         title: "产品手册",

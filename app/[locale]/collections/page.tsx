@@ -32,12 +32,30 @@ function sortCollections<
     return next.sort((left, right) => right.starsAdded - left.starsAdded || left.name.localeCompare(right.name));
   }
 
+  if (sort === "archive") {
+    return next.sort(
+      (left, right) =>
+        (right.updatedAt.slice(0, 4) || "").localeCompare(left.updatedAt.slice(0, 4) || "") ||
+        left.name.localeCompare(right.name),
+    );
+  }
+
   return next.sort(
     (left, right) =>
       Number(right.featured) - Number(left.featured) ||
       right.starsAdded - left.starsAdded ||
       left.name.localeCompare(right.name),
   );
+}
+
+function buildCoverStyle(seed: string | null) {
+  const source = seed ?? "collection";
+  const score = Array.from(source).reduce((total, char, index) => total + char.charCodeAt(0) * (index + 1), 0);
+  const hue = score % 360;
+  const hue2 = (hue + 52) % 360;
+  return {
+    background: `linear-gradient(135deg, hsl(${hue} 78% 56%), hsl(${hue2} 84% 41%))`,
+  };
 }
 
 export default async function CollectionsPage({ params, searchParams }: PageProps) {
@@ -61,49 +79,10 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
     return text.includes(search);
   });
 
-  const copy = {
-    title: currentLocale === "zh-CN" ? "精选集合" : "Collections",
-    intro:
-      currentLocale === "zh-CN"
-        ? "以集合方式浏览正在快速增长的开源主题。这里的内容由后端任务持续维护，不再依赖浏览器触发采集。"
-        : "Browse rising open-source themes as curated collections. These listings are maintained by backend jobs rather than browser-triggered collection runs.",
-    searchLabel: currentLocale === "zh-CN" ? "搜索集合" : "Search collections",
-    empty:
-      currentLocale === "zh-CN"
-        ? "当前还没有可用的集合数据。先执行 `npm run collections:sync`，再刷新页面。"
-        : "No collections are available yet. Run `npm run collections:sync` and refresh the page.",
-    countLabel: currentLocale === "zh-CN" ? "集合数" : "Collections",
-    followerLabel: currentLocale === "zh-CN" ? "关注数" : "Followers",
-    weeklyStarsLabel: currentLocale === "zh-CN" ? "本周 Stars" : "Weekly stars",
-    browseModeLabel: currentLocale === "zh-CN" ? "浏览方式" : "Browse mode",
-    featuredSort: currentLocale === "zh-CN" ? "精选优先" : "Featured",
-    newSort: currentLocale === "zh-CN" ? "最近更新" : "New",
-    popularSort: currentLocale === "zh-CN" ? "按热度" : "Popular",
-    applyLabel: currentLocale === "zh-CN" ? "应用" : "Apply",
-    featuredEyebrow: currentLocale === "zh-CN" ? "精选展馆" : "Featured gallery",
-    featuredHeading: currentLocale === "zh-CN" ? "精选集合" : "Featured Collections",
-    curatedPick: currentLocale === "zh-CN" ? "策展精选" : "Curated pick",
-    totalStarsLabel: currentLocale === "zh-CN" ? "总 Stars" : "Total stars",
-    followersLabel: currentLocale === "zh-CN" ? "关注" : "Followers",
-    reposLabel: currentLocale === "zh-CN" ? "仓库数" : "Repos",
-    enterGalleryLabel: currentLocale === "zh-CN" ? "进入展馆" : "Enter gallery",
-    browseTagsEyebrow: currentLocale === "zh-CN" ? "按标签浏览" : "Browse by tags",
-    browseTagsHeading: currentLocale === "zh-CN" ? "标签入口" : "Tag browse",
-    recentEyebrow: currentLocale === "zh-CN" ? "近期更新" : "Recently updated",
-    recentHeading: currentLocale === "zh-CN" ? "最近更新" : "Recently updated",
-    hotEyebrow: currentLocale === "zh-CN" ? "今年热度" : "Popular this year",
-    hotHeading: currentLocale === "zh-CN" ? "热门集合" : "Popular collections",
-    featuredBadge: currentLocale === "zh-CN" ? "精选" : "Featured",
-    collectionBadge: currentLocale === "zh-CN" ? "集合" : "Collection",
-    weeklyGrowthLabel: currentLocale === "zh-CN" ? "周增 Stars" : "Weekly stars",
-    contributorsLabel: currentLocale === "zh-CN" ? "活跃贡献者" : "Contributors",
-    subscriptionsLabel: currentLocale === "zh-CN" ? "订阅" : "Followers",
-    viewCollectionLabel: currentLocale === "zh-CN" ? "查看详情" : "View collection",
-  };
-
   const featuredCollections = collections.filter((item) => item.featured).slice(0, 2);
   const recentlyUpdated = [...collections].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 4);
   const popularCollections = [...collections].sort((left, right) => right.starsAdded - left.starsAdded).slice(0, 4);
+  const archiveCollections = [...collections].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 6);
   const tagBrowse = Array.from(
     collections.reduce((map, collection) => {
       for (const tag of collection.tags) {
@@ -113,6 +92,34 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
     }, new Map<string, number>()),
   ).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
   const totalFollowers = collections.reduce((total, collection) => total + collection.subscriptionCount, 0);
+  const totalYears = new Set(collections.flatMap((item) => item.availableYears)).size;
+  const copy = {
+    title: currentLocale === "zh-CN" ? "精选集合" : "Collections",
+    intro:
+      currentLocale === "zh-CN"
+        ? "这里已经不只是列表页，而是一个可提交、可审核、可订阅、可按年份回看的策展展厅。"
+        : "This surface now acts like a curation gallery with public submission, moderation, subscriptions, and year-based browsing.",
+    searchLabel: currentLocale === "zh-CN" ? "搜索集合" : "Search collections",
+    browseModeLabel: currentLocale === "zh-CN" ? "浏览模式" : "Browse mode",
+    featuredSort: currentLocale === "zh-CN" ? "精选优先" : "Featured",
+    newSort: currentLocale === "zh-CN" ? "最近更新" : "New",
+    popularSort: currentLocale === "zh-CN" ? "按热度" : "Popular",
+    archiveSort: currentLocale === "zh-CN" ? "按历史" : "Archive",
+    applyLabel: currentLocale === "zh-CN" ? "应用" : "Apply",
+    submitLabel: currentLocale === "zh-CN" ? "提交新集合" : "Submit a collection",
+    reviewLabel: currentLocale === "zh-CN" ? "审核工作台" : "Review workspace",
+    totalYearsLabel: currentLocale === "zh-CN" ? "年份覆盖" : "Years covered",
+    followersLabel: currentLocale === "zh-CN" ? "关注" : "Followers",
+    weeklyStarsLabel: currentLocale === "zh-CN" ? "本周 Stars" : "Weekly stars",
+    browseTagsHeading: currentLocale === "zh-CN" ? "标签入口" : "Tag browse",
+    featuredHeading: currentLocale === "zh-CN" ? "精选展厅" : "Featured gallery",
+    recentHeading: currentLocale === "zh-CN" ? "最近更新" : "Recently updated",
+    hotHeading: currentLocale === "zh-CN" ? "热门集合" : "Popular collections",
+    archiveHeading: currentLocale === "zh-CN" ? "历史浏览" : "Archive browse",
+    viewCollectionLabel: currentLocale === "zh-CN" ? "查看详情" : "View collection",
+    reposLabel: currentLocale === "zh-CN" ? "仓库数" : "Repos",
+    yearsLabel: currentLocale === "zh-CN" ? "年份" : "Years",
+  };
 
   return (
     <main className="subpage-shell">
@@ -123,17 +130,29 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
         <p>{copy.intro}</p>
         <div className="hero-chip-row">
           <div className="hero-chip">
-            <span>{copy.countLabel}</span>
+            <span>{currentLocale === "zh-CN" ? "集合数" : "Collections"}</span>
             <strong>{collections.length}</strong>
           </div>
           <div className="hero-chip">
-            <span>{copy.followerLabel}</span>
+            <span>{copy.followersLabel}</span>
             <strong>{totalFollowers}</strong>
           </div>
           <div className="hero-chip">
             <span>{copy.weeklyStarsLabel}</span>
             <strong>+{collections.reduce((total, item) => total + item.starsAdded, 0)}</strong>
           </div>
+          <div className="hero-chip">
+            <span>{copy.totalYearsLabel}</span>
+            <strong>{totalYears || 1}</strong>
+          </div>
+        </div>
+        <div className="row-actions">
+          <a className="primary-button" href={`/${currentLocale}/collections/submit`}>
+            {copy.submitLabel}
+          </a>
+          <a className="secondary-button" href={`/${currentLocale}/collections/review`}>
+            {copy.reviewLabel}
+          </a>
         </div>
       </section>
 
@@ -150,6 +169,7 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
               <option value="new">{copy.newSort}</option>
               <option value="az">A-Z</option>
               <option value="popular">{copy.popularSort}</option>
+              <option value="archive">{copy.archiveSort}</option>
             </select>
           </label>
           <button type="submit" className="secondary-button">
@@ -162,15 +182,15 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
         <section className="content-card">
           <div className="deck__header">
             <div>
-              <p className="eyebrow">{copy.featuredEyebrow}</p>
+              <p className="eyebrow">{dictionary.sections.boards}</p>
               <h2>{copy.featuredHeading}</h2>
             </div>
           </div>
           <div className="collections-showcase">
             {featuredCollections.map((collection, index) => (
               <article key={collection.slug} className={`collection-card ${index === 0 ? "collection-card--hero" : "collection-card--compact"}`}>
-                <div className="collection-card__cover">
-                  <span>{copy.curatedPick}</span>
+                <div className="collection-card__cover" style={buildCoverStyle(collection.coverImage)}>
+                  <span>{collection.tags.slice(0, 2).join(" / ") || "Collection"}</span>
                   <strong>{collection.name}</strong>
                 </div>
                 <div className="collection-card__body">
@@ -187,25 +207,25 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
                   </div>
                   <div className="collection-card__metrics">
                     <div>
-                      <span>{copy.totalStarsLabel}</span>
-                      <strong>{collection.totalStars}</strong>
+                      <span>{copy.reposLabel}</span>
+                      <strong>{collection.repositoryCount}</strong>
                     </div>
                     <div>
                       <span>{copy.followersLabel}</span>
                       <strong>{collection.subscriptionCount}</strong>
                     </div>
                     <div>
-                      <span>{copy.reposLabel}</span>
-                      <strong>{collection.repositoryCount}</strong>
-                    </div>
-                    <div>
                       <span>{copy.weeklyStarsLabel}</span>
                       <strong>+{collection.starsAdded}</strong>
+                    </div>
+                    <div>
+                      <span>{copy.yearsLabel}</span>
+                      <strong>{collection.availableYears.join(", ")}</strong>
                     </div>
                   </div>
                   <div className="row-actions">
                     <a className="primary-button" href={`/${currentLocale}/collections/${collection.slug}`}>
-                      {copy.enterGalleryLabel}
+                      {copy.viewCollectionLabel}
                     </a>
                   </div>
                 </div>
@@ -219,14 +239,14 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
         <section className="content-card">
           <div className="deck__header">
             <div>
-              <p className="eyebrow">{copy.browseTagsEyebrow}</p>
+              <p className="eyebrow">{dictionary.sections.boards}</p>
               <h2>{copy.browseTagsHeading}</h2>
             </div>
           </div>
           <div className="inline-chips">
             {tagBrowse.map(([tag, count]) => (
               <span key={tag} className="mini-chip">
-                {tag} · {count}
+                {tag} / {count}
               </span>
             ))}
           </div>
@@ -237,7 +257,7 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
         <article className="content-card">
           <div className="deck__header">
             <div>
-              <p className="eyebrow">{copy.recentEyebrow}</p>
+              <p className="eyebrow">{dictionary.sections.archive}</p>
               <h2>{copy.recentHeading}</h2>
             </div>
           </div>
@@ -254,7 +274,7 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
         <article className="content-card">
           <div className="deck__header">
             <div>
-              <p className="eyebrow">{copy.hotEyebrow}</p>
+              <p className="eyebrow">{dictionary.sections.rankings}</p>
               <h2>{copy.hotHeading}</h2>
             </div>
           </div>
@@ -269,73 +289,84 @@ export default async function CollectionsPage({ params, searchParams }: PageProp
         </article>
       </section>
 
+      <section className="content-card">
+        <div className="deck__header">
+          <div>
+            <p className="eyebrow">{dictionary.sections.archive}</p>
+            <h2>{copy.archiveHeading}</h2>
+          </div>
+        </div>
+        <div className="collection-preview-list">
+          {archiveCollections.map((collection) => (
+            <a key={`archive-${collection.slug}`} className="collection-preview-list__item" href={`/${currentLocale}/collections/${collection.slug}?year=${collection.availableYears[0] ?? new Date().getUTCFullYear()}`}>
+              <strong>{collection.name}</strong>
+              <span>{collection.availableYears.join(", ")}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
       <section className="collections-grid">
-        {collections.length ? (
-          collections.map((collection) => (
-            <article key={collection.slug} className="collection-card">
-              <div className="collection-card__cover">
-                <span>{collection.featured ? copy.featuredBadge : copy.collectionBadge}</span>
-                <strong>{collection.name}</strong>
+        {collections.map((collection) => (
+          <article key={collection.slug} className="collection-card">
+            <div className="collection-card__cover" style={buildCoverStyle(collection.coverImage)}>
+              <span>{collection.featured ? "Featured" : "Collection"}</span>
+              <strong>{collection.name}</strong>
+            </div>
+            <div className="collection-card__body">
+              <div className="card-headline">
+                <h2>{collection.name}</h2>
+                <p>{collection.description}</p>
               </div>
-              <div className="collection-card__body">
-                <div className="card-headline">
-                  <h2>{collection.name}</h2>
-                  <p>{collection.description}</p>
+              <div className="inline-chips">
+                {collection.tags.map((tag) => (
+                  <span key={`${collection.slug}-${tag}`} className="mini-chip">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="collection-card__metrics">
+                <div>
+                  <span>{copy.reposLabel}</span>
+                  <strong>{collection.repositoryCount}</strong>
                 </div>
-                <div className="inline-chips">
-                  {collection.tags.map((tag) => (
-                    <span key={`${collection.slug}-${tag}`} className="mini-chip">
-                      {tag}
-                    </span>
-                  ))}
+                <div>
+                  <span>{copy.weeklyStarsLabel}</span>
+                  <strong>+{collection.starsAdded}</strong>
                 </div>
-                <div className="collection-card__metrics">
-                  <div>
-                    <span>{copy.reposLabel}</span>
-                    <strong>{collection.repositoryCount}</strong>
-                  </div>
-                  <div>
-                    <span>{copy.totalStarsLabel}</span>
-                    <strong>{collection.totalStars}</strong>
-                  </div>
-                  <div>
-                    <span>{copy.weeklyGrowthLabel}</span>
-                    <strong>+{collection.starsAdded}</strong>
-                  </div>
-                  <div>
-                    <span>PR</span>
-                    <strong>{collection.prsOpened}</strong>
-                  </div>
-                  <div>
-                    <span>{copy.contributorsLabel}</span>
-                    <strong>{collection.activeContributors}</strong>
-                  </div>
-                  <div>
-                    <span>{copy.subscriptionsLabel}</span>
-                    <strong>{collection.subscriptionCount}</strong>
-                  </div>
+                <div>
+                  <span>PR</span>
+                  <strong>{collection.prsOpened}</strong>
                 </div>
-                <div className="collection-preview-list">
-                  {collection.topRepositories.map((repo) => (
-                    <a key={`${collection.slug}-${repo.repositoryId}`} href={`/${currentLocale}/repo/${repo.owner}/${repo.name}`} className="collection-preview-list__item">
-                      <strong>{repo.fullName}</strong>
-                      <span>+{repo.weeklyStars}</span>
-                    </a>
-                  ))}
+                <div>
+                  <span>Issues</span>
+                  <strong>{collection.issuesOpened}</strong>
                 </div>
-                <div className="row-actions">
-                  <a className="secondary-button" href={`/${currentLocale}/collections/${collection.slug}`}>
-                    {copy.viewCollectionLabel}
+                <div>
+                  <span>{currentLocale === "zh-CN" ? "贡献者" : "Contributors"}</span>
+                  <strong>{collection.activeContributors}</strong>
+                </div>
+                <div>
+                  <span>{copy.yearsLabel}</span>
+                  <strong>{collection.availableYears.join(", ")}</strong>
+                </div>
+              </div>
+              <div className="collection-preview-list">
+                {collection.topRepositories.map((repo) => (
+                  <a key={`${collection.slug}-${repo.repositoryId}`} href={`/${currentLocale}/repo/${repo.owner}/${repo.name}`} className="collection-preview-list__item">
+                    <strong>{repo.fullName}</strong>
+                    <span>+{repo.weeklyStars}</span>
                   </a>
-                </div>
+                ))}
               </div>
-            </article>
-          ))
-        ) : (
-          <article className="content-card">
-            <p>{copy.empty}</p>
+              <div className="row-actions">
+                <a className="secondary-button" href={`/${currentLocale}/collections/${collection.slug}`}>
+                  {copy.viewCollectionLabel}
+                </a>
+              </div>
+            </div>
           </article>
-        )}
+        ))}
       </section>
     </main>
   );

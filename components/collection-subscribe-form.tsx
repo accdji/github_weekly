@@ -10,6 +10,9 @@ export function CollectionSubscribeForm(props: {
 }) {
   const [email, setEmail] = useState("");
   const [frequency, setFrequency] = useState("weekly");
+  const [channel, setChannel] = useState("in_app");
+  const [channelTarget, setChannelTarget] = useState("");
+  const [notifyOnNewRepos, setNotifyOnNewRepos] = useState(true);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [count, setCount] = useState(props.initialCount);
   const isZh = props.locale === "zh-CN";
@@ -28,7 +31,10 @@ export function CollectionSubscribeForm(props: {
           email: email.trim() || null,
           locale: props.locale,
           digestFrequency: frequency,
+          channel,
+          channelTarget: channelTarget.trim() || null,
           collectionId: props.collectionId,
+          notifyOnNewRepos,
         }),
       });
 
@@ -39,6 +45,7 @@ export function CollectionSubscribeForm(props: {
       setStatus("success");
       setCount((current) => current + 1);
       setEmail("");
+      setChannelTarget("");
     } catch (error) {
       console.error(error);
       setStatus("error");
@@ -57,8 +64,8 @@ export function CollectionSubscribeForm(props: {
 
       <p className="muted">
         {isZh
-          ? "订阅后，后续可以接收集合新收录仓库提醒，以及每周或每月摘要。"
-          : "Subscribe now to prepare for new-entry alerts and future weekly or monthly digests."}
+          ? "现在可以把集合订阅到站内 outbox、邮件，或者企业微信 / 飞书 / 自定义 Webhook。"
+          : "You can now route collection digests to the in-app outbox, email, or WeCom / Feishu / custom webhooks."}
       </p>
 
       <div className="collections-toolbar">
@@ -78,8 +85,44 @@ export function CollectionSubscribeForm(props: {
             <option value="monthly">{isZh ? "每月" : "Monthly"}</option>
           </select>
         </label>
+        <label className="field">
+          <span>{isZh ? "渠道" : "Channel"}</span>
+          <select value={channel} onChange={(event) => setChannel(event.target.value)}>
+            <option value="in_app">{isZh ? "站内" : "In-app"}</option>
+            <option value="email">{isZh ? "邮件" : "Email"}</option>
+            <option value="wecom_webhook">{isZh ? "企业微信 Webhook" : "WeCom webhook"}</option>
+            <option value="feishu_webhook">{isZh ? "飞书 Webhook" : "Feishu webhook"}</option>
+            <option value="webhook">{isZh ? "自定义 Webhook" : "Custom webhook"}</option>
+          </select>
+        </label>
+        {(channel === "wecom_webhook" || channel === "feishu_webhook" || channel === "webhook") && (
+          <label className="field field--search">
+            <span>{isZh ? "Webhook 地址" : "Webhook URL"}</span>
+            <input
+              value={channelTarget}
+              onChange={(event) => setChannelTarget(event.target.value)}
+              placeholder="https://example.com/hook"
+            />
+          </label>
+        )}
+        <label className="field">
+          <span>{isZh ? "新仓库提醒" : "New repo alerts"}</span>
+          <select
+            value={notifyOnNewRepos ? "yes" : "no"}
+            onChange={(event) => setNotifyOnNewRepos(event.target.value === "yes")}
+          >
+            <option value="yes">{isZh ? "开启" : "Enabled"}</option>
+            <option value="no">{isZh ? "关闭" : "Disabled"}</option>
+          </select>
+        </label>
         <button type="submit" className="primary-button" disabled={status === "loading"}>
-          {status === "loading" ? (isZh ? "订阅中..." : "Subscribing...") : isZh ? "订阅这个集合" : "Subscribe to this collection"}
+          {status === "loading"
+            ? isZh
+              ? "提交中..."
+              : "Subscribing..."
+            : isZh
+              ? "订阅这个集合"
+              : "Subscribe to this collection"}
         </button>
       </div>
 
@@ -93,8 +136,8 @@ export function CollectionSubscribeForm(props: {
               ? "订阅失败，请稍后重试。"
               : "Subscription failed. Please try again."
             : isZh
-              ? "可以先留空邮箱，仅通过站内提醒接收更新。"
-              : "Leave the email empty if you want to start with in-app alerts only."}
+              ? "不填邮箱时会先投递到站内 outbox；邮件渠道可通过验证链接激活。"
+              : "Leave the email empty to start with the in-app outbox; email channels can be activated with the verification link."}
       </p>
     </form>
   );

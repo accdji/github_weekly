@@ -6,7 +6,7 @@
 
 ## 项目概览
 
-- 产品页面：仪表盘、Collections、历史归档、任务中心、订阅中心、产品手册
+- 产品页面：仪表盘、Collections、集合提交、集合审核、历史归档、任务中心、订阅中心、产品手册
 - 数据流：后端任务负责采集和聚合，前端页面只读数据库
 - 本地数据库：SQLite
 - 生产数据库：PostgreSQL
@@ -16,8 +16,8 @@
 - 线上地址：[github-weekly.onrender.com](https://github-weekly.onrender.com)
 - 托管平台：Render Free Web Service
 - 生产数据库：Neon PostgreSQL
-- 定时更新：GitHub Actions `Trend Pipeline`
-- 最近一次已验证成功的运行：2026-04-04 23:47 至 23:49，中国标准时间，触发方式为 `workflow_dispatch`
+- 定时刷新：GitHub Actions `Trend Pipeline`
+- 最近一次已验证成功的运行：2026-04-04 23:47 到 23:49（中国标准时间），触发方式为 `workflow_dispatch`
 - 定时执行时间：每天中国标准时间 `09:00`，即 `01:00 UTC`
 
 ## 反馈渠道
@@ -43,6 +43,7 @@
 - `npm run build:weekly`：生成最新周榜
 - `npm run collections:sync`：初始化或刷新精选集合
 - `npm run pipeline:run`：执行后端采集流水线
+- `npm run worker:subscriptions`：创建并处理订阅 digest 投递
 - `npm run ai:context`：输出产品手册 JSON 上下文
 - `npm run ai:report`：输出最新 Markdown 周报
 - `npm run ai:repo -- owner/name`：输出单个仓库档案
@@ -58,19 +59,22 @@
 - 数据库：Neon PostgreSQL
 - 调度：GitHub Actions
 - 自动部署：Render `On Commit`
-- 自动更新：`.github/workflows/trend-pipeline.yml`
+- 自动刷新：`.github/workflows/trend-pipeline.yml`
 
 生产环境 `Secrets`：
+
 - `DATABASE_URL`
 - `GH_TOKEN` 可选但推荐
 
 生产环境 `Variables`：
+
 - `TOP_LANGUAGES`
 - `COLLECT_PER_QUERY`
 - `STAR_HISTORY_DAYS`
 - `STAR_HISTORY_MAX_PAGES`
 
 可选变量：
+
 - `SEARCH_QUERY`
 
 ## 日常维护
@@ -84,6 +88,8 @@
 
 - 仪表盘：`/{locale}`
 - Collections：`/{locale}/collections`
+- 提交集合：`/{locale}/collections/submit`
+- 审核工作台：`/{locale}/collections/review`
 - Collection 详情：`/{locale}/collections/{slug}`
 - 历史归档：`/{locale}/archive`
 - 任务中心：`/{locale}/jobs`
@@ -95,9 +101,13 @@
 - `GET /api/dashboard`
 - `GET /api/collections`
 - `GET /api/collections/{slug}`
+- `GET|POST /api/collections/submissions`
+- `PATCH /api/collections/submissions/{id}`
 - `GET /api/archive`
 - `GET /api/jobs`
-- `POST /api/subscriptions`
+- `GET|POST|PATCH /api/subscriptions`
+- `GET /api/subscriptions/verify`
+- `POST /api/workers/subscriptions`
 - `GET /api/ai/context`
 
 ## 文档索引
@@ -115,7 +125,8 @@
 ## 当前说明
 
 - 前端已经移除“立即爬取”
-- Collections 已经是正式数据库实体
+- Collections 已经是正式数据库实体，并包含公开提交和审核流程
+- 订阅系统已经支持 subscriber、验证链接、delivery jobs/logs、仓库级订阅，以及 worker 驱动的 digest 投递
 - 部分仓库详情仍可能在运行时请求 GitHub API，所以配置 `GH_TOKEN` 会更稳
 
 ## GitNexus

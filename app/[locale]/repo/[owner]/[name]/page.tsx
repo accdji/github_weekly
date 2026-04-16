@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import { RepositorySubscribeForm } from "@/components/repository-subscribe-form";
 import { SiteHeader } from "@/components/site-header";
 import { getRepositoryTrend } from "@/lib/archive";
+import { prisma } from "@/lib/db";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 
 export const revalidate = 600;
@@ -22,9 +24,16 @@ export default async function RepositoryTrendPage({ params }: PageProps) {
 
   const currentLocale = locale as Locale;
   const dictionary = getDictionary(currentLocale);
-  const data = await getRepositoryTrend(`${owner}/${name}`);
+  const fullName = `${owner}/${name}`;
+  const [data, repository] = await Promise.all([
+    getRepositoryTrend(fullName),
+    prisma.repository.findUnique({
+      where: { fullName },
+      select: { id: true },
+    }),
+  ]);
 
-  if (!data) {
+  if (!data || !repository) {
     notFound();
   }
 
@@ -35,6 +44,9 @@ export default async function RepositoryTrendPage({ params }: PageProps) {
         <p className="eyebrow">{dictionary.sections.detail}</p>
         <h1>{data.fullName}</h1>
         <p>{data.description ?? dictionary.misc.noData}</p>
+      </section>
+      <section className="content-card">
+        <RepositorySubscribeForm repositoryId={repository.id} fullName={data.fullName} locale={currentLocale} />
       </section>
       <section className="content-card">
         <h2>{dictionary.sections.history}</h2>
