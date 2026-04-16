@@ -1,6 +1,7 @@
 import { CACHE_WINDOWS, jsonWithCache } from "@/lib/http-cache";
 import { getCollectionsIndex } from "@/lib/collections";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export async function GET() {

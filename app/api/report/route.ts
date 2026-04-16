@@ -1,6 +1,7 @@
 import { buildAiReport } from "@/lib/ai-toolkit";
 import { CACHE_WINDOWS, textWithCache } from "@/lib/http-cache";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export async function GET() {

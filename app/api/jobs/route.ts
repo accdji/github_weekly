@@ -2,6 +2,7 @@ import { CACHE_WINDOWS, jsonWithCache } from "@/lib/http-cache";
 import { listRecentJobRuns } from "@/lib/jobs";
 import { listRecentWorkerRuns } from "@/lib/workers";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 30;
 
 export async function GET() {
